@@ -1,0 +1,33 @@
+name: Aggiorna Dati Apex
+
+on:
+  schedule:
+    - cron: '*/5 * * * *' # Gira ogni 5 minuti
+  workflow_dispatch:      # Permette di avviarlo manualmente con un clic
+
+permissions:
+  contents: write
+
+jobs:
+  track:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Scarica repository
+        uses: actions/checkout@v4
+
+      - name: Configura Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Esegui tracker
+        env:
+          APEX_API_KEY: ${{ secrets.APEX_API_KEY }}
+        run: python tracker.py
+
+      - name: Salva modifiche su GitHub
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "Apex Tracker Bot"
+          git add changes.csv data.json
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Aggiornamento dati Apex" && git push)
