@@ -477,3 +477,13 @@
 1794864503,1000489104156,total.passive_savior_boosted_distance_covered,2.32854e+06,2.32854e+06
 1794864503,1000489104156,legend.Conduit.tactical_shield_applied,1.77422e+06,1.77422e+06
 1794864503,1000489104156,legend.Conduit.passive_savior_boosted_distance_covered,2.32854e+06,2.32854e+06
+1794864656,1000489104156,total.kills,3643,4012
+1794864656,1000489104156,total.tactical_enemy_tethered,,786
+1794864656,1000489104156,total.ultimate_players_phased,,664
+1794864656,1000489104156,total.tactical_shield_applied,1.77422e+06,1.77422e+06
+1794864656,1000489104156,total.passive_savior_boosted_distance_covered,2.32854e+06,2.32854e+06
+1794864656,1000489104156,legend.Ash.kills,,369
+1794864656,1000489104156,legend.Ash.tactical_enemy_tethered,,786
+1794864656,1000489104156,legend.Ash.ultimate_players_phased,,664
+1794864656,1000489104156,legend.Conduit.tactical_shield_applied,1.77422e+06,1.77422e+06
+1794864656,1000489104156,legend.Conduit.passive_savior_boosted_distance_covered,2.32854e+06,2.32854e+06
