@@ -142,9 +142,4 @@ def main():
         json.dump({"status": status, "changes": changes}, f, separators=(",", ":"))
 
 if __name__ == "__main__":
-    # Esegue 2 controlli a distanza di 2 minuti e mezzo per ogni avvio di GitHub Actions
-    for i in range(2):
-        print(f"--- Controllo {i+1}/2 ---")
-        main()
-        if i == 0:
-            time.sleep(150)
+    main()
