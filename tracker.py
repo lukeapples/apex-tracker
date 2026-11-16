@@ -14,6 +14,10 @@ DATA_FILE = "data.json"
 def is_num(v):
     return isinstance(v, (int, float)) and not isinstance(v, bool)
 
+def fmt_num(v):
+    # Evita la notazione scientifica (es. 1.77e+06) che causava falsi cambiamenti
+    return f"{int(round(v))}" if float(v).is_integer() else f"{v:.2f}"
+
 def get_metrics(data):
     m = {}
     g = data.get("global") or {}
@@ -57,6 +61,10 @@ def main():
                 key = r["key"]
                 old = float(r["old"]) if r["old"] != "" else None
                 new = float(r["new"])
+                # Ignora righe inutili dove old == new già presenti nel vecchio CSV
+                if old is not None and round(old, 2) == round(new, 2):
+                    latest[f"{uid}|{key}"] = new
+                    continue
                 changes.append([ts, uid, key, old, new])
                 latest[f"{uid}|{key}"] = new
 
@@ -88,7 +96,7 @@ def main():
             })
             req = urllib.request.Request(
                 f"{API_URL}?{params}",
-                headers={"User-Agent": "ApexCloudTracker/1.0"}
+                headers={"User-Agent": "ApexCloudTracker/1.1"}
             )
             with urllib.request.urlopen(req, timeout=20) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
@@ -111,18 +119,27 @@ def main():
             for k, v in metrics.items():
                 ident = f"{uid}|{k}"
                 has = ident in latest
-                if not has or latest[ident] != v:
-                    old = latest[ident] if has else None
-                    latest[ident] = v
-                    changes.append([now, uid, k, old, v])
-                    new_rows.append({
-                        "ts": now,
-                        "uid": uid,
-                        "key": k,
-                        "old": "" if old is None else f"{old:g}",
-                        "new": f"{v:g}"
-                    })
-            print(f"{st['name'] or uid}: OK")
+                old = latest[ident] if has else None
+
+                # Confronta arrotondando a 2 decimali per evitare falsi positivi
+                if has and round(old, 2) == round(v, 2):
+                    continue
+
+                # Le statistiche cumulative (tutto tranne rank_score) non possono mai scendere:
+                # se scendono è un glitch momentaneo dell'API, lo ignoriamo.
+                if has and k != "rank_score" and v < old:
+                    continue
+
+                latest[ident] = v
+                changes.append([now, uid, k, old, v])
+                new_rows.append({
+                    "ts": now,
+                    "uid": uid,
+                    "key": k,
+                    "old": "" if old is None else fmt_num(old),
+                    "new": fmt_num(v)
+                })
+            print(f"{st['name'] or uid}: OK ({len(new_rows)} variazioni)")
         except Exception as e:
             st["last_error"] = str(e)
             print(f"{uid}: ERRORE - {e}")
