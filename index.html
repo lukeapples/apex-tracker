@@ -35,9 +35,11 @@
     table{border-collapse:collapse;width:100%}
     td,th{border-bottom:1px solid var(--bd);padding:8px 6px;text-align:left;font-size:13px}
     th{color:var(--mut);font-size:11px;text-transform:uppercase}
+    .group-row td{background:var(--bg);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--acc);padding:10px 8px;border-top:1px solid var(--bd)}
     .wrap{overflow-x:auto}
     .match-card{background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px}
     .badge{display:inline-block;padding:3px 8px;border-radius:8px;font-size:12px;font-weight:700;background:var(--card);border:1px solid var(--bd)}
+    .rank-pos{display:inline-block;width:22px;font-weight:700;color:var(--mut)}
     .hidden{display:none}
   </style>
 </head>
@@ -51,34 +53,22 @@
   <button class="refresh-btn" onclick="loadData()">&#x21bb; Aggiorna</button>
 </div>
 
-<!-- TAB 1: GRAFICO -->
-<div id="tab-overview">
+<!-- TAB 1: CONFRONTO (Schermata Principale) -->
+<div id="tab-compare">
   <div class="card">
-    <div class="row" style="margin-bottom:12px">
-      <select id="player"></select>
-      <select id="key"></select>
-    </div>
-    <div style="height:300px;position:relative"><canvas id="chart"></canvas></div>
+    <h2>Classifica Squadra (Ordinata per RP)</h2>
+    <div class="wrap"><table>
+      <thead><tr><th>#</th><th>Giocatore</th><th>Grado</th><th>RP</th><th>RP 24h</th><th>Kill 24h</th></tr></thead>
+      <tbody id="compare-table"></tbody>
+    </table></div>
   </div>
   <div class="card">
-    <h2>Ultime variazioni</h2>
-    <div class="wrap"><table><thead><tr><th>Ora</th><th>Statistica</th><th>Prima</th><th>Dopo</th><th>&Delta;</th></tr></thead>
-    <tbody id="events"></tbody></table></div>
-  </div>
-</div>
-
-<!-- TAB 2: PARTITE -->
-<div id="tab-matches" class="hidden">
-  <div class="card">
-    <div class="row" style="margin-bottom:12px">
-      <h2 style="margin:0;flex:1">Ultime Partite</h2>
-      <select id="player-matches"></select>
-    </div>
-    <div id="matches-list"></div>
+    <h2>Confronto Andamento RP</h2>
+    <div style="height:280px;position:relative"><canvas id="chart-compare"></canvas></div>
   </div>
 </div>
 
-<!-- TAB 3: RESOCONTI -->
+<!-- TAB 2: RESOCONTO -->
 <div id="tab-recap" class="hidden">
   <div class="card">
     <div class="row" style="margin-bottom:12px">
@@ -95,26 +85,39 @@
   </div>
 </div>
 
-<!-- TAB 4: CONFRONTO -->
-<div id="tab-compare" class="hidden">
+<!-- TAB 3: PARTITE -->
+<div id="tab-matches" class="hidden">
   <div class="card">
-    <h2>Confronto RP</h2>
-    <div style="height:260px;position:relative"><canvas id="chart-compare"></canvas></div>
-  </div>
-  <div class="card">
-    <h2>Classifica Squadra</h2>
-    <div class="wrap"><table>
-      <thead><tr><th>Giocatore</th><th>Grado</th><th>RP</th><th>RP 24h</th><th>Kill 24h</th></tr></thead>
-      <tbody id="compare-table"></tbody>
-    </table></div>
+    <div class="row" style="margin-bottom:12px">
+      <h2 style="margin:0;flex:1">Ultime Partite</h2>
+      <select id="player-matches"></select>
+    </div>
+    <div id="matches-list"></div>
   </div>
 </div>
 
+<!-- TAB 4: GRAFICO -->
+<div id="tab-overview" class="hidden">
+  <div class="card">
+    <div class="row" style="margin-bottom:12px">
+      <select id="player"></select>
+      <select id="key"></select>
+    </div>
+    <div style="height:300px;position:relative"><canvas id="chart"></canvas></div>
+  </div>
+  <div class="card">
+    <h2>Ultime variazioni</h2>
+    <div class="wrap"><table><thead><tr><th>Ora</th><th>Statistica</th><th>Prima</th><th>Dopo</th><th>&Delta;</th></tr></thead>
+    <tbody id="events"></tbody></table></div>
+  </div>
+</div>
+
+<!-- BARRA NAVIGAZIONE INFERIORE -->
 <nav class="nav-bar">
-  <button class="tab active" data-tab="overview"><span>&#x1F4C8;</span>Grafico</button>
+  <button class="tab active" data-tab="compare"><span>&#x1F3C6;</span>Confronto</button>
+  <button class="tab" data-tab="recap"><span>&#x1F4CA;</span>Resoconto</button>
   <button class="tab" data-tab="matches"><span>&#x1F3AE;</span>Partite</button>
-  <button class="tab" data-tab="recap"><span>&#x1F4CA;</span>Resoconti</button>
-  <button class="tab" data-tab="compare"><span>&#x1F3C6;</span>Confronto</button>
+  <button class="tab" data-tab="overview"><span>&#x1F4C8;</span>Grafico</button>
 </nav>
 
 <script>
@@ -132,7 +135,9 @@ const STAT_MAP = {
   'rank_score': 'Punti Rango (RP)',
   'level': 'Livello Account',
   'kills': 'Uccisioni',
+  'specialEvent_kills': 'Uccisioni Stagionali',
   'damage': 'Danni Inflitti',
+  'specialEvent_damage': 'Danni Stagionali',
   'wins': 'Vittorie',
   'games_played': 'Partite Giocate',
   'top_3': 'Top 3',
@@ -142,19 +147,48 @@ const STAT_MAP = {
   'revives': 'Rianimazioni',
   'respawns': 'Respawn',
   'assists': 'Assist',
-  'knockdowns': 'Atterramenti'
+  'knockdowns': 'Atterramenti',
+  'sniper_kills': 'Uccisioni Cecchino',
+  'care_package_kills': 'Uccisioni Armi Capsula',
+  'double_time_distance': 'Distanza Doppio Passo',
+  'smoke_grenade_enemies_hit': 'Nemici Colpiti Fumo',
+  'phase_walk_time': 'Tempo Fase',
+  'rifts_squadmates_phased': 'Alleati nel Portale',
+  'enemies_scanned': 'Nemici Scansionati',
+  'doc_drone_healing': 'Cure Drone D.O.C.',
+  'doc_drone_squadmates_revived': 'Rianimazioni Drone',
+  'tactical_shield_applied': 'Scudi Tattici Applicati',
+  'passive_savior_boosted_distance_covered': 'Distanza Passiva Salvatrice',
+  'teammates_lifted': 'Alleati Sollevati',
+  'ultimate_boosted_travel_distance': 'Distanza Palla Demolitrice',
+  'tactical_damage_blocked': 'Danni Bloccati Scudo',
+  'motherlode_captured': 'Nemici Intrappolati',
+  'squadmates_use_jumppad': 'Salti Trampolino',
+  'passive_health_regen': 'Salute Rigenerata',
+  'tactical_enemy_tethered': 'Nemici Intrappolati'
 };
 
-function labelKey(k) {
+// Restituisce solo il nome pulito della statistica (senza prefisso leggenda, utile nei gruppi)
+function shortStatLabel(k) {
   if (STAT_MAP[k]) return STAT_MAP[k];
   if (k.startsWith('total.')) {
     const sub = k.slice(6);
-    return 'Totale: ' + (STAT_MAP[sub] || sub.replace(/_/g, ' '));
+    return STAT_MAP[sub] || sub.replace(/_/g, ' ');
   }
   if (k.startsWith('legend.')) {
-    const p = k.split('.');
-    const s = p.slice(2).join('.');
-    return p[1] + ' \u2014 ' + (STAT_MAP[s] || s.replace(/_/g, ' '));
+    const s = k.split('.').slice(2).join('.');
+    return STAT_MAP[s] || s.replace(/_/g, ' ');
+  }
+  return k;
+}
+
+// Restituisce nome completo (usato nelle tabelle miste come "Ultime variazioni")
+function labelKey(k) {
+  if (STAT_MAP[k]) return STAT_MAP[k];
+  if (k.startsWith('total.')) return 'Generale \u2014 ' + shortStatLabel(k);
+  if (k.startsWith('legend.')) {
+    const leg = k.split('.')[1];
+    return leg + ' \u2014 ' + shortStatLabel(k);
   }
   return k;
 }
@@ -195,27 +229,46 @@ const rankBandsPlugin = {
 };
 
 let chart, compareChart;
+let activeTab = 'compare';
 
 document.querySelectorAll('.tab').forEach(btn => {
   btn.onclick = () => {
     document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    const target = btn.dataset.tab;
-    ['overview', 'matches', 'recap', 'compare'].forEach(t => $('tab-' + t).classList.toggle('hidden', t !== target));
-    if (target === 'compare') renderCompare();
+    activeTab = btn.dataset.tab;
+    ['compare', 'recap', 'matches', 'overview'].forEach(t => $('tab-' + t).classList.toggle('hidden', t !== activeTab));
+    updateHeaderSub();
+    if (activeTab === 'compare') renderCompare();
+    if (activeTab === 'overview') renderOverview();
   };
 });
 
 async function loadData() {
   try {
-    // Aggiunge timestamp per evitare cache vecchia su mobile
     const res = await fetch('data.json?t=' + Date.now());
-    D = await res.json();
+    const raw = await res.json();
+    D.status = raw.status || {};
+    D.changes = (raw.changes || []).filter(c => c[3] === null || Math.round(c[3] * 100) !== Math.round(c[4] * 100));
     initSelectors();
     fillKeys();
     renderAll();
   } catch (e) {
     $('sub').textContent = 'In attesa della prima sincronizzazione cloud...';
+  }
+}
+
+function updateHeaderSub() {
+  if (activeTab === 'compare') {
+    const times = Object.values(D.status).map(s => s.last_ok).filter(Boolean);
+    const last = times.length ? Math.max(...times) : null;
+    $('sub').textContent = last ? 'Ultimo aggiornamento squadra: ' + fmt(last) : 'Nessun dato';
+  } else {
+    const uid = $('player').value;
+    const p = D.status[uid] || {};
+    $('sub').textContent = (p.name ? p.name + ' \u00b7 ' : '') +
+      (p.rank ? p.rank + ' ' + p.rank_div + ' \u00b7 ' : '') +
+      (p.level ? 'Lv ' + p.level + ' \u00b7 ' : '') +
+      (p.last_ok ? fmt(p.last_ok) : 'Nessun dato');
   }
 }
 
@@ -237,22 +290,200 @@ function initSelectors() {
   });
 }
 
+// Popola il menu a tendina del Grafico dividendo Generali e Leggende con <optgroup>
 function fillKeys() {
   const uid = $('player').value;
-  const keys = [...new Set(D.changes.filter(c => c[1] === uid).map(c => c[2]))].sort((a,b) => labelKey(a).localeCompare(labelKey(b)));
+  const keys = [...new Set(D.changes.filter(c => c[1] === uid).map(c => c[2]))];
   const prev = $('key').value;
   $('key').innerHTML = '';
-  keys.forEach(k => $('key').add(new Option(labelKey(k), k)));
+
+  const generalKeys = [];
+  const legendGroups = {};
+
+  keys.forEach(k => {
+    if (k.startsWith('legend.')) {
+      const leg = k.split('.')[1];
+      if (!legendGroups[leg]) legendGroups[leg] = [];
+      legendGroups[leg].push(k);
+    } else {
+      generalKeys.push(k);
+    }
+  });
+
+  if (generalKeys.length) {
+    const grp = document.createElement('optgroup');
+    grp.label = 'Statistiche Generali';
+    generalKeys.sort((a, b) => shortStatLabel(a).localeCompare(shortStatLabel(b))).forEach(k => {
+      grp.appendChild(new Option(shortStatLabel(k), k));
+    });
+    $('key').appendChild(grp);
+  }
+
+  Object.keys(legendGroups).sort().forEach(leg => {
+    const grp = document.createElement('optgroup');
+    grp.label = 'Leggenda: ' + leg;
+    legendGroups[leg].sort((a, b) => shortStatLabel(a).localeCompare(shortStatLabel(b))).forEach(k => {
+      grp.appendChild(new Option(shortStatLabel(k), k));
+    });
+    $('key').appendChild(grp);
+  });
+
   const sk = prev || store.get('apex_key');
   $('key').value = keys.includes(sk) ? sk : (keys.includes('rank_score') ? 'rank_score' : (keys[0] || ''));
 }
 
-function renderOverview() {
-  const uid = $('player').value, k = $('key').value, p = D.status[uid] || {};
-  $('sub').textContent = (p.rank ? p.rank + ' ' + p.rank_div + ' \u00b7 ' : '') +
-    (p.level ? 'Lv ' + p.level + ' \u00b7 ' : '') +
-    (p.last_ok ? fmt(p.last_ok) : 'Nessun dato');
+function renderCompare() {
+  const uids = Object.keys(D.status);
+  const colors = ['#e0463a', '#3b7be3', '#1ea653', '#d4af37', '#a349e5'];
 
+  // Calcola RP attuali per ciascun giocatore e ordina in modo decrescente
+  const rankedPlayers = uids.map((u, origIdx) => {
+    const p = D.status[u] || {};
+    const rpRows = D.changes.filter(c => c[1] === u && c[2] === 'rank_score');
+    const curRp = rpRows.length ? rpRows[rpRows.length - 1][4] : -1;
+    const dAgg = calcPeriodStats(u, 86400);
+    const rpD = dAgg['rank_score'] ? dAgg['rank_score'].delta : 0;
+    const kD = dAgg['total.kills'] ? dAgg['total.kills'].delta : 0;
+    return { uid: u, p, curRp, rpD, kD, color: colors[origIdx % colors.length] };
+  }).sort((a, b) => b.curRp - a.curRp);
+
+  $('compare-table').innerHTML = rankedPlayers.map((item, idx) => {
+    const medal = idx === 0 ? '\uD83E\uDD47' : (idx === 1 ? '\uD83E\uDD48' : (idx === 2 ? '\uD83E\uDD49' : (idx + 1)));
+    return `<tr>
+      <td><span class="rank-pos">${medal}</span></td>
+      <td><b>${esc(item.p.name || item.uid)}</b></td>
+      <td>${item.p.rank ? esc(item.p.rank + ' ' + item.p.rank_div) : '\u2014'}</td>
+      <td><b>${item.curRp >= 0 ? item.curRp : '\u2014'}</b></td>
+      <td class="${item.rpD >= 0 ? 'up' : 'down'}">${item.rpD >= 0 ? '+' : ''}${item.rpD}</td>
+      <td>${item.kD}</td>
+    </tr>`;
+  }).join('');
+
+  const datasets = rankedPlayers.map(item => ({
+    label: item.p.name || item.uid,
+    data: D.changes.filter(c => c[1] === item.uid && c[2] === 'rank_score').map(r => ({ x: r[0] * 1000, y: r[4] })),
+    borderColor: item.color,
+    backgroundColor: item.color,
+    tension: 0.15,
+    pointRadius: 2
+  }));
+
+  if (compareChart) compareChart.destroy();
+  compareChart = new Chart($('chart-compare'), {
+    type: 'line',
+    data: { datasets },
+    options: {
+      maintainAspectRatio: false,
+      parsing: false,
+      scales: { x: { type: 'linear', ticks: { callback: v => new Date(v).toLocaleDateString('it-IT', {day:'2-digit',month:'short'}) } } }
+    }
+  });
+}
+
+function calcPeriodStats(uid, sec) {
+  const cutoff = Math.floor(Date.now() / 1000) - sec;
+  const agg = {};
+  D.changes.filter(c => c[1] === uid && c[0] >= cutoff && c[3] !== null).forEach(r => {
+    const k = r[2];
+    if (!agg[k]) agg[k] = { first: r[3], last: r[4], delta: 0, count: 0 };
+    agg[k].last = r[4];
+    agg[k].delta = Math.round((agg[k].delta + (r[4] - r[3])) * 100) / 100;
+    agg[k].count += 1;
+  });
+  return agg;
+}
+
+function renderRecap() {
+  const uid = $('player-recap').value;
+  const p = $('period-recap').value;
+  const agg = calcPeriodStats(uid, p === 'day' ? 86400 : (p === 'week' ? 604800 : 2592000));
+
+  const rp = agg['rank_score'] ? agg['rank_score'].delta : 0;
+  // Ogni variazione di rank_score corrisponde a 1 partita Ranked completata
+  const rankedMatches = agg['rank_score'] ? agg['rank_score'].count : 0;
+
+  const kills = agg['total.kills'] ? agg['total.kills'].delta : Object.keys(agg).filter(k => k.endsWith('.kills')).reduce((a,b) => a + agg[b].delta, 0);
+  const dmg = agg['total.damage'] ? agg['total.damage'].delta : Object.keys(agg).filter(k => k.endsWith('.damage')).reduce((a,b) => a + agg[b].delta, 0);
+
+  $('recap-kpis').innerHTML = `
+    <div class="kpi"><div class="kpi-title">Variazione RP</div><div class="kpi-val ${rp>=0?'up':'down'}">${rp>=0?'+':''}${rp}</div></div>
+    <div class="kpi"><div class="kpi-title">Uccisioni</div><div class="kpi-val">${kills}</div></div>
+    <div class="kpi"><div class="kpi-title">Danni Inflitti</div><div class="kpi-val">${dmg.toLocaleString('it-IT')}</div></div>
+    <div class="kpi"><div class="kpi-title">Partite Ranked</div><div class="kpi-val">${rankedMatches}</div></div>
+  `;
+
+  // Separa statistiche generali da quelle raggruppate per leggenda
+  const generalKeys = [];
+  const legendGroups = {};
+
+  Object.keys(agg).forEach(k => {
+    if (k.startsWith('legend.')) {
+      const leg = k.split('.')[1];
+      if (!legendGroups[leg]) legendGroups[leg] = [];
+      legendGroups[leg].push(k);
+    } else {
+      generalKeys.push(k);
+    }
+  });
+
+  let htmlRows = '';
+
+  if (generalKeys.length) {
+    htmlRows += `<tr class="group-row"><td colspan="4">Statistiche Generali</td></tr>`;
+    generalKeys.sort((a, b) => shortStatLabel(a).localeCompare(shortStatLabel(b))).forEach(k => {
+      const d = agg[k].delta;
+      htmlRows += `<tr><td>${esc(shortStatLabel(k))}</td><td>${agg[k].first}</td><td>${agg[k].last}</td><td class="${d>=0?'up':'down'}">${d>=0?'+':''}${d}</td></tr>`;
+    });
+  }
+
+  Object.keys(legendGroups).sort().forEach(leg => {
+    htmlRows += `<tr class="group-row"><td colspan="4">Leggenda: ${esc(leg)}</td></tr>`;
+    legendGroups[leg].sort((a, b) => shortStatLabel(a).localeCompare(shortStatLabel(b))).forEach(k => {
+      const d = agg[k].delta;
+      htmlRows += `<tr><td>${esc(shortStatLabel(k))}</td><td>${agg[k].first}</td><td>${agg[k].last}</td><td class="${d>=0?'up':'down'}">${d>=0?'+':''}${d}</td></tr>`;
+    });
+  });
+
+  $('recap-table').innerHTML = htmlRows || '<tr><td colspan="4" class="mut">Nessun dato nel periodo.</td></tr>';
+}
+
+function renderMatches() {
+  const uid = $('player-matches').value;
+  const ev = D.changes.filter(c => c[1] === uid && c[3] !== null);
+  const sessions = [];
+  ev.forEach(c => {
+    const last = sessions[sessions.length - 1];
+    if (last && (c[0] - last.ts) <= 240) last.items.push(c);
+    else sessions.push({ ts: c[0], items: [c] });
+  });
+
+  const list = sessions.reverse().slice(0, 35);
+  $('matches-list').innerHTML = list.length ? list.map(s => {
+    let legend = 'Partita', rpDiff = null, kills = 0, dmg = 0, wins = 0;
+    s.items.forEach(item => {
+      const k = item[2], diff = Math.round((item[4] - item[3]) * 100) / 100;
+      if (k.startsWith('legend.')) legend = k.split('.')[1];
+      if (k === 'rank_score') rpDiff = diff;
+      else if ((k.endsWith('.kills') || k.endsWith('.specialEvent_kills')) && diff > 0 && diff <= 40) {
+        kills = Math.max(kills, diff);
+      }
+      else if ((k.endsWith('.damage') || k.endsWith('.specialEvent_damage')) && diff > 0 && diff <= 10000) {
+        dmg = Math.max(dmg, diff);
+      }
+      else if (k.endsWith('.wins') && diff > 0 && diff <= 5) {
+        wins = Math.max(wins, diff);
+      }
+    });
+    const rpHtml = rpDiff !== null ? `<span class="badge ${rpDiff>=0?'up':'down'}">RP ${rpDiff>=0?'+':''}${rpDiff}</span>` : `<span class="badge">Pubblica</span>`;
+    return `<div class="match-card">
+      <div><b>${esc(legend)} ${wins>0?'\uD83C\uDFC6':''}</b><div class="mut">${fmt(s.ts)}</div></div>
+      <div class="row">${rpHtml}<span>Kill: <b>${kills}</b></span><span>Danni: <b>${dmg}</b></span></div>
+    </div>`;
+  }).join('') : '<div class="mut">Nessuna partita rilevata ancora.</div>';
+}
+
+function renderOverview() {
+  const uid = $('player').value, k = $('key').value;
   const rows = D.changes.filter(c => c[1] === uid && c[2] === k);
   if (chart) chart.destroy();
   chart = new Chart($('chart'), {
@@ -288,100 +519,14 @@ function renderOverview() {
   }).join('');
 }
 
-function renderMatches() {
-  const uid = $('player-matches').value;
-  const ev = D.changes.filter(c => c[1] === uid && c[3] !== null);
-  const sessions = [];
-  ev.forEach(c => {
-    const last = sessions[sessions.length - 1];
-    if (last && (c[0] - last.ts) <= 420) last.items.push(c);
-    else sessions.push({ ts: c[0], items: [c] });
-  });
-
-  const list = sessions.reverse().slice(0, 30);
-  $('matches-list').innerHTML = list.length ? list.map(s => {
-    let legend = 'Partita', rpDiff = null, kills = 0, dmg = 0, wins = 0;
-    s.items.forEach(item => {
-      const k = item[2], diff = Math.round((item[4] - item[3]) * 100) / 100;
-      if (k.startsWith('legend.')) legend = k.split('.')[1];
-      if (k === 'rank_score') rpDiff = diff;
-      else if (k.endsWith('.kills') || k === 'total.kills') kills = Math.max(kills, diff);
-      else if (k.endsWith('.damage') || k === 'total.damage') dmg = Math.max(dmg, diff);
-      else if (k.endsWith('.wins') || k === 'total.wins') wins = Math.max(wins, diff);
-    });
-    const rpHtml = rpDiff !== null ? `<span class="badge ${rpDiff>=0?'up':'down'}">RP ${rpDiff>=0?'+':''}${rpDiff}</span>` : `<span class="badge">Pubblica</span>`;
-    return `<div class="match-card">
-      <div><b>${esc(legend)} ${wins>0?'\uD83C\uDFC6':''}</b><div class="mut">${fmt(s.ts)}</div></div>
-      <div class="row">${rpHtml}<span>Kill: <b>${kills}</b></span><span>Danni: <b>${dmg}</b></span></div>
-    </div>`;
-  }).join('') : '<div class="mut">Nessuna partita rilevata ancora.</div>';
+function renderAll() {
+  updateHeaderSub();
+  renderCompare();
+  renderRecap();
+  renderMatches();
+  renderOverview();
 }
 
-function calcPeriodStats(uid, sec) {
-  const cutoff = Math.floor(Date.now() / 1000) - sec;
-  const agg = {};
-  D.changes.filter(c => c[1] === uid && c[0] >= cutoff && c[3] !== null).forEach(r => {
-    const k = r[2];
-    if (!agg[k]) agg[k] = { first: r[3], last: r[4], delta: 0 };
-    agg[k].last = r[4];
-    agg[k].delta = Math.round((agg[k].delta + (r[4] - r[3])) * 100) / 100;
-  });
-  return agg;
-}
-
-function renderRecap() {
-  const uid = $('player-recap').value;
-  const p = $('period-recap').value;
-  const agg = calcPeriodStats(uid, p === 'day' ? 86400 : (p === 'week' ? 604800 : 2592000));
-  const rp = agg['rank_score'] ? agg['rank_score'].delta : 0;
-  const kills = agg['total.kills'] ? agg['total.kills'].delta : Object.keys(agg).filter(k => k.endsWith('.kills')).reduce((a,b) => a + agg[b].delta, 0);
-  const dmg = agg['total.damage'] ? agg['total.damage'].delta : Object.keys(agg).filter(k => k.endsWith('.damage')).reduce((a,b) => a + agg[b].delta, 0);
-  const wins = agg['total.wins'] ? agg['total.wins'].delta : Object.keys(agg).filter(k => k.endsWith('.wins')).reduce((a,b) => a + agg[b].delta, 0);
-
-  $('recap-kpis').innerHTML = `
-    <div class="kpi"><div class="kpi-title">RP</div><div class="kpi-val ${rp>=0?'up':'down'}">${rp>=0?'+':''}${rp}</div></div>
-    <div class="kpi"><div class="kpi-title">Uccisioni</div><div class="kpi-val">${kills}</div></div>
-    <div class="kpi"><div class="kpi-title">Danni</div><div class="kpi-val">${dmg.toLocaleString('it-IT')}</div></div>
-    <div class="kpi"><div class="kpi-title">Vittorie</div><div class="kpi-val">${wins}</div></div>
-  `;
-
-  const keys = Object.keys(agg).sort((a,b) => labelKey(a).localeCompare(labelKey(b)));
-  $('recap-table').innerHTML = keys.length ? keys.map(k => {
-    const d = agg[k].delta;
-    return `<tr><td>${esc(labelKey(k))}</td><td>${agg[k].first}</td><td>${agg[k].last}</td><td class="${d>=0?'up':'down'}">${d>=0?'+':''}${d}</td></tr>`;
-  }).join('') : '<tr><td colspan="4" class="mut">Nessun dato nel periodo.</td></tr>';
-}
-
-function renderCompare() {
-  const uids = Object.keys(D.status);
-  const colors = ['#e0463a', '#3b7be3', '#1ea653', '#d4af37', '#a349e5'];
-  const datasets = uids.map((u, i) => ({
-    label: D.status[u].name || u,
-    data: D.changes.filter(c => c[1] === u && c[2] === 'rank_score').map(r => ({ x: r[0] * 1000, y: r[4] })),
-    borderColor: colors[i % colors.length],
-    tension: 0.15,
-    pointRadius: 2
-  }));
-
-  if (compareChart) compareChart.destroy();
-  compareChart = new Chart($('chart-compare'), {
-    type: 'line',
-    data: { datasets },
-    options: { maintainAspectRatio: false, parsing: false, scales: { x: { type: 'linear', ticks: { callback: v => new Date(v).toLocaleDateString('it-IT', {day:'2-digit',month:'short'}) } } } }
-  });
-
-  $('compare-table').innerHTML = uids.map(u => {
-    const p = D.status[u] || {};
-    const rpRows = D.changes.filter(c => c[1] === u && c[2] === 'rank_score');
-    const curRp = rpRows.length ? rpRows[rpRows.length - 1][4] : '\u2014';
-    const dAgg = calcPeriodStats(u, 86400);
-    const rpD = dAgg['rank_score'] ? dAgg['rank_score'].delta : 0;
-    const kD = dAgg['total.kills'] ? dAgg['total.kills'].delta : 0;
-    return `<tr><td><b>${esc(p.name||u)}</b></td><td>${p.rank?esc(p.rank+' '+p.rank_div):'\u2014'}</td><td><b>${curRp}</b></td><td class="${rpD>=0?'up':'down'}">${rpD>=0?'+':''}${rpD}</td><td>${kD}</td></tr>`;
-  }).join('');
-}
-
-function renderAll() { renderOverview(); renderMatches(); renderRecap(); }
 $('key').onchange = () => { store.set('apex_key', $('key').value); renderOverview(); };
 $('period-recap').onchange = renderRecap;
 loadData();
