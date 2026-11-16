@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <meta name="theme-color" content="#e0463a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.json">
+  <title>Apex Squad Tracker</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    :root{color-scheme:dark;--bg:#121418;--card:#1b1e24;--fg:#eceef2;--mut:#8f96a3;--bd:#2b303b;--acc:#e0463a;--up:#1ea653;--down:#e0463a}
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    body{font:14px/1.45 system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--fg);max-width:960px;margin:0 auto;padding:14px 14px 76px}
+    h1{font-size:20px;margin:0}
+    h2{font-size:15px;margin:0 0 10px;font-weight:600}
+    .mut{color:var(--mut);font-size:12px}
+    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+    .refresh-btn{background:var(--card);border:1px solid var(--bd);color:var(--fg);padding:6px 12px;border-radius:8px;font-size:13px;cursor:pointer}
+    /* Barra navigazione inferiore stile App Mobile */
+    .nav-bar{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--bd);display:flex;justify-content:space-around;padding:8px 0 max(8px,env(safe-area-inset-bottom));z-index:100}
+    .tab{border:0;background:transparent;color:var(--mut);font:inherit;font-size:11px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;flex:1}
+    .tab span{font-size:18px}
+    .tab.active{color:var(--acc)}
+    .card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:14px}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    select{font:inherit;padding:8px 10px;background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:8px;flex:1;min-width:140px}
+    .kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}
+    @media(min-width:600px){.kpi-grid{grid-template-columns:repeat(4,1fr)}}
+    .kpi{background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:10px 12px}
+    .kpi-title{font-size:11px;color:var(--mut);text-transform:uppercase}
+    .kpi-val{font-size:20px;font-weight:700;margin-top:2px}
+    .up{color:var(--up);font-weight:600}.down{color:var(--down);font-weight:600}
+    table{border-collapse:collapse;width:100%}
+    td,th{border-bottom:1px solid var(--bd);padding:8px 6px;text-align:left;font-size:13px}
+    th{color:var(--mut);font-size:11px;text-transform:uppercase}
+    .wrap{overflow-x:auto}
+    .match-card{background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+    .badge{display:inline-block;padding:3px 8px;border-radius:8px;font-size:12px;font-weight:700;background:var(--card);border:1px solid var(--bd)}
+    .hidden{display:none}
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>Apex Squad Tracker</h1>
+    <div class="mut" id="sub">Caricamento dati...</div>
+  </div>
+  <button class="refresh-btn" onclick="loadData()">&#x21bb; Aggiorna</button>
+</div>
+
+<!-- TAB 1: GRAFICO -->
+<div id="tab-overview">
+  <div class="card">
+    <div class="row" style="margin-bottom:12px">
+      <select id="player"></select>
+      <select id="key"></select>
+    </div>
+    <div style="height:300px;position:relative"><canvas id="chart"></canvas></div>
+  </div>
+  <div class="card">
+    <h2>Ultime variazioni</h2>
+    <div class="wrap"><table><thead><tr><th>Ora</th><th>Statistica</th><th>Prima</th><th>Dopo</th><th>&Delta;</th></tr></thead>
+    <tbody id="events"></tbody></table></div>
+  </div>
+</div>
+
+<!-- TAB 2: PARTITE -->
+<div id="tab-matches" class="hidden">
+  <div class="card">
+    <div class="row" style="margin-bottom:12px">
+      <h2 style="margin:0;flex:1">Ultime Partite</h2>
+      <select id="player-matches"></select>
+    </div>
+    <div id="matches-list"></div>
+  </div>
+</div>
+
+<!-- TAB 3: RESOCONTI -->
+<div id="tab-recap" class="hidden">
+  <div class="card">
+    <div class="row" style="margin-bottom:12px">
+      <select id="player-recap"></select>
+      <select id="period-recap">
+        <option value="day">Ultime 24 ore</option>
+        <option value="week">Ultimi 7 giorni</option>
+        <option value="month">Ultimi 30 giorni</option>
+      </select>
+    </div>
+    <div class="kpi-grid" id="recap-kpis"></div>
+    <div class="wrap"><table><thead><tr><th>Statistica</th><th>Inizio</th><th>Attuale</th><th>&Delta;</th></tr></thead>
+    <tbody id="recap-table"></tbody></table></div>
+  </div>
+</div>
+
+<!-- TAB 4: CONFRONTO -->
+<div id="tab-compare" class="hidden">
+  <div class="card">
+    <h2>Confronto RP</h2>
+    <div style="height:260px;position:relative"><canvas id="chart-compare"></canvas></div>
+  </div>
+  <div class="card">
+    <h2>Classifica Squadra</h2>
+    <div class="wrap"><table>
+      <thead><tr><th>Giocatore</th><th>Grado</th><th>RP</th><th>RP 24h</th><th>Kill 24h</th></tr></thead>
+      <tbody id="compare-table"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<nav class="nav-bar">
+  <button class="tab active" data-tab="overview"><span>&#x1F4C8;</span>Grafico</button>
+  <button class="tab" data-tab="matches"><span>&#x1F3AE;</span>Partite</button>
+  <button class="tab" data-tab="recap"><span>&#x1F4CA;</span>Resoconti</button>
+  <button class="tab" data-tab="compare"><span>&#x1F3C6;</span>Confronto</button>
+</nav>
+
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+let D = { status: {}, changes: [] };
+const $ = id => document.getElementById(id);
+const fmt = t => new Date(t * 1000).toLocaleString('it-IT', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const store = {get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+
+const STAT_MAP = {
+  'rank_score': 'Punti Rango (RP)',
+  'level': 'Livello Account',
+  'kills': 'Uccisioni',
+  'damage': 'Danni Inflitti',
+  'wins': 'Vittorie',
+  'games_played': 'Partite Giocate',
+  'top_3': 'Top 3',
+  'top_5': 'Top 5',
+  'headshots': 'Colpi alla Testa',
+  'finishers': 'Esecuzioni',
+  'revives': 'Rianimazioni',
+  'respawns': 'Respawn',
+  'assists': 'Assist',
+  'knockdowns': 'Atterramenti'
+};
+
+function labelKey(k) {
+  if (STAT_MAP[k]) return STAT_MAP[k];
+  if (k.startsWith('total.')) {
+    const sub = k.slice(6);
+    return 'Totale: ' + (STAT_MAP[sub] || sub.replace(/_/g, ' '));
+  }
+  if (k.startsWith('legend.')) {
+    const p = k.split('.');
+    const s = p.slice(2).join('.');
+    return p[1] + ' \u2014 ' + (STAT_MAP[s] || s.replace(/_/g, ' '));
+  }
+  return k;
+}
+
+const RANK_TIERS = [
+  { name: 'Bronze IV', rp: 1000, color: '#a66838' },
+  { name: 'Silver IV', rp: 3000, color: '#9aa4b0' },
+  { name: 'Gold IV', rp: 5400, color: '#d4af37' },
+  { name: 'Platinum IV', rp: 8200, color: '#39b8c4' },
+  { name: 'Diamond IV', rp: 11400, color: '#3b7be3' },
+  { name: 'Master', rp: 15000, color: '#a349e5' }
+];
+
+const rankBandsPlugin = {
+  id: 'rankBands',
+  afterDraw(chart) {
+    if ($('key').value !== 'rank_score') return;
+    const { ctx, chartArea: { left, right, top, bottom }, scales: { y } } = chart;
+    ctx.save();
+    RANK_TIERS.forEach(t => {
+      const yPos = y.getPixelForValue(t.rp);
+      if (yPos >= top && yPos <= bottom) {
+        ctx.beginPath();
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = t.color + '88';
+        ctx.moveTo(left, yPos);
+        ctx.lineTo(right, yPos);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = t.color;
+        ctx.font = 'bold 11px system-ui';
+        ctx.textAlign = 'right';
+        ctx.fillText(t.name, right - 4, yPos - 4);
+      }
+    });
+    ctx.restore();
+  }
+};
+
+let chart, compareChart;
+
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const target = btn.dataset.tab;
+    ['overview', 'matches', 'recap', 'compare'].forEach(t => $('tab-' + t).classList.toggle('hidden', t !== target));
+    if (target === 'compare') renderCompare();
+  };
+});
+
+async function loadData() {
+  try {
+    // Aggiunge timestamp per evitare cache vecchia su mobile
+    const res = await fetch('data.json?t=' + Date.now());
+    D = await res.json();
+    initSelectors();
+    fillKeys();
+    renderAll();
+  } catch (e) {
+    $('sub').textContent = 'In attesa della prima sincronizzazione cloud...';
+  }
+}
+
+function initSelectors() {
+  const uids = Object.keys(D.status);
+  ['player', 'player-matches', 'player-recap'].forEach(selId => {
+    const el = $(selId);
+    const prev = el.value;
+    el.innerHTML = '';
+    uids.forEach(u => el.add(new Option(D.status[u].name || u, u)));
+    const sp = prev || store.get('apex_player');
+    if (sp && uids.includes(sp)) el.value = sp;
+    el.onchange = () => {
+      store.set('apex_player', el.value);
+      ['player', 'player-matches', 'player-recap'].forEach(id => $(id).value = el.value);
+      fillKeys();
+      renderAll();
+    };
+  });
+}
+
+function fillKeys() {
+  const uid = $('player').value;
+  const keys = [...new Set(D.changes.filter(c => c[1] === uid).map(c => c[2]))].sort((a,b) => labelKey(a).localeCompare(labelKey(b)));
+  const prev = $('key').value;
+  $('key').innerHTML = '';
+  keys.forEach(k => $('key').add(new Option(labelKey(k), k)));
+  const sk = prev || store.get('apex_key');
+  $('key').value = keys.includes(sk) ? sk : (keys.includes('rank_score') ? 'rank_score' : (keys[0] || ''));
+}
+
+function renderOverview() {
+  const uid = $('player').value, k = $('key').value, p = D.status[uid] || {};
+  $('sub').textContent = (p.rank ? p.rank + ' ' + p.rank_div + ' \u00b7 ' : '') +
+    (p.level ? 'Lv ' + p.level + ' \u00b7 ' : '') +
+    (p.last_ok ? fmt(p.last_ok) : 'Nessun dato');
+
+  const rows = D.changes.filter(c => c[1] === uid && c[2] === k);
+  if (chart) chart.destroy();
+  chart = new Chart($('chart'), {
+    type: 'line',
+    data: {
+      datasets: [{
+        label: labelKey(k),
+        data: rows.map(r => ({ x: r[0] * 1000, y: r[4] })),
+        tension: 0.15,
+        pointRadius: 3,
+        borderWidth: 2,
+        borderColor: k === 'rank_score' ? '#d4af37' : '#e0463a',
+        backgroundColor: 'rgba(224,70,58,0.1)',
+        fill: true
+      }]
+    },
+    plugins: [rankBandsPlugin],
+    options: {
+      maintainAspectRatio: false,
+      parsing: false,
+      scales: {
+        x: { type: 'linear', ticks: { callback: v => new Date(v).toLocaleDateString('it-IT', {day:'2-digit',month:'short'}) } },
+        y: { grace: '10%' }
+      }
+    }
+  });
+
+  const ev = D.changes.filter(c => c[1] === uid).slice(-50).reverse();
+  $('events').innerHTML = ev.map(e => {
+    const d = e[3] == null ? null : e[4] - e[3];
+    const c = d == null ? '' : (d > 0 ? 'up' : 'down');
+    return `<tr><td>${fmt(e[0])}</td><td>${esc(labelKey(e[2]))}</td><td>${e[3]==null?'\u2014':e[3]}</td><td>${e[4]}</td><td class="${c}">${d==null?'':(d>0?'+':'')+Math.round(d*100)/100}</td></tr>`;
+  }).join('');
+}
+
+function renderMatches() {
+  const uid = $('player-matches').value;
+  const ev = D.changes.filter(c => c[1] === uid && c[3] !== null);
+  const sessions = [];
+  ev.forEach(c => {
+    const last = sessions[sessions.length - 1];
+    if (last && (c[0] - last.ts) <= 420) last.items.push(c);
+    else sessions.push({ ts: c[0], items: [c] });
+  });
+
+  const list = sessions.reverse().slice(0, 30);
+  $('matches-list').innerHTML = list.length ? list.map(s => {
+    let legend = 'Partita', rpDiff = null, kills = 0, dmg = 0, wins = 0;
+    s.items.forEach(item => {
+      const k = item[2], diff = Math.round((item[4] - item[3]) * 100) / 100;
+      if (k.startsWith('legend.')) legend = k.split('.')[1];
+      if (k === 'rank_score') rpDiff = diff;
+      else if (k.endsWith('.kills') || k === 'total.kills') kills = Math.max(kills, diff);
+      else if (k.endsWith('.damage') || k === 'total.damage') dmg = Math.max(dmg, diff);
+      else if (k.endsWith('.wins') || k === 'total.wins') wins = Math.max(wins, diff);
+    });
+    const rpHtml = rpDiff !== null ? `<span class="badge ${rpDiff>=0?'up':'down'}">RP ${rpDiff>=0?'+':''}${rpDiff}</span>` : `<span class="badge">Pubblica</span>`;
+    return `<div class="match-card">
+      <div><b>${esc(legend)} ${wins>0?'\uD83C\uDFC6':''}</b><div class="mut">${fmt(s.ts)}</div></div>
+      <div class="row">${rpHtml}<span>Kill: <b>${kills}</b></span><span>Danni: <b>${dmg}</b></span></div>
+    </div>`;
+  }).join('') : '<div class="mut">Nessuna partita rilevata ancora.</div>';
+}
+
+function calcPeriodStats(uid, sec) {
+  const cutoff = Math.floor(Date.now() / 1000) - sec;
+  const agg = {};
+  D.changes.filter(c => c[1] === uid && c[0] >= cutoff && c[3] !== null).forEach(r => {
+    const k = r[2];
+    if (!agg[k]) agg[k] = { first: r[3], last: r[4], delta: 0 };
+    agg[k].last = r[4];
+    agg[k].delta = Math.round((agg[k].delta + (r[4] - r[3])) * 100) / 100;
+  });
+  return agg;
+}
+
+function renderRecap() {
+  const uid = $('player-recap').value;
+  const p = $('period-recap').value;
+  const agg = calcPeriodStats(uid, p === 'day' ? 86400 : (p === 'week' ? 604800 : 2592000));
+  const rp = agg['rank_score'] ? agg['rank_score'].delta : 0;
+  const kills = agg['total.kills'] ? agg['total.kills'].delta : Object.keys(agg).filter(k => k.endsWith('.kills')).reduce((a,b) => a + agg[b].delta, 0);
+  const dmg = agg['total.damage'] ? agg['total.damage'].delta : Object.keys(agg).filter(k => k.endsWith('.damage')).reduce((a,b) => a + agg[b].delta, 0);
+  const wins = agg['total.wins'] ? agg['total.wins'].delta : Object.keys(agg).filter(k => k.endsWith('.wins')).reduce((a,b) => a + agg[b].delta, 0);
+
+  $('recap-kpis').innerHTML = `
+    <div class="kpi"><div class="kpi-title">RP</div><div class="kpi-val ${rp>=0?'up':'down'}">${rp>=0?'+':''}${rp}</div></div>
+    <div class="kpi"><div class="kpi-title">Uccisioni</div><div class="kpi-val">${kills}</div></div>
+    <div class="kpi"><div class="kpi-title">Danni</div><div class="kpi-val">${dmg.toLocaleString('it-IT')}</div></div>
+    <div class="kpi"><div class="kpi-title">Vittorie</div><div class="kpi-val">${wins}</div></div>
+  `;
+
+  const keys = Object.keys(agg).sort((a,b) => labelKey(a).localeCompare(labelKey(b)));
+  $('recap-table').innerHTML = keys.length ? keys.map(k => {
+    const d = agg[k].delta;
+    return `<tr><td>${esc(labelKey(k))}</td><td>${agg[k].first}</td><td>${agg[k].last}</td><td class="${d>=0?'up':'down'}">${d>=0?'+':''}${d}</td></tr>`;
+  }).join('') : '<tr><td colspan="4" class="mut">Nessun dato nel periodo.</td></tr>';
+}
+
+function renderCompare() {
+  const uids = Object.keys(D.status);
+  const colors = ['#e0463a', '#3b7be3', '#1ea653', '#d4af37', '#a349e5'];
+  const datasets = uids.map((u, i) => ({
+    label: D.status[u].name || u,
+    data: D.changes.filter(c => c[1] === u && c[2] === 'rank_score').map(r => ({ x: r[0] * 1000, y: r[4] })),
+    borderColor: colors[i % colors.length],
+    tension: 0.15,
+    pointRadius: 2
+  }));
+
+  if (compareChart) compareChart.destroy();
+  compareChart = new Chart($('chart-compare'), {
+    type: 'line',
+    data: { datasets },
+    options: { maintainAspectRatio: false, parsing: false, scales: { x: { type: 'linear', ticks: { callback: v => new Date(v).toLocaleDateString('it-IT', {day:'2-digit',month:'short'}) } } } }
+  });
+
+  $('compare-table').innerHTML = uids.map(u => {
+    const p = D.status[u] || {};
+    const rpRows = D.changes.filter(c => c[1] === u && c[2] === 'rank_score');
+    const curRp = rpRows.length ? rpRows[rpRows.length - 1][4] : '\u2014';
+    const dAgg = calcPeriodStats(u, 86400);
+    const rpD = dAgg['rank_score'] ? dAgg['rank_score'].delta : 0;
+    const kD = dAgg['total.kills'] ? dAgg['total.kills'].delta : 0;
+    return `<tr><td><b>${esc(p.name||u)}</b></td><td>${p.rank?esc(p.rank+' '+p.rank_div):'\u2014'}</td><td><b>${curRp}</b></td><td class="${rpD>=0?'up':'down'}">${rpD>=0?'+':''}${rpD}</td><td>${kD}</td></tr>`;
+  }).join('');
+}
+
+function renderAll() { renderOverview(); renderMatches(); renderRecap(); }
+$('key').onchange = () => { store.set('apex_key', $('key').value); renderOverview(); };
+$('period-recap').onchange = renderRecap;
+loadData();
+</script>
+</body>
+</html>
