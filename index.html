@@ -18,7 +18,6 @@
     .mut{color:var(--mut);font-size:12px}
     .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
     .refresh-btn{background:var(--card);border:1px solid var(--bd);color:var(--fg);padding:6px 12px;border-radius:8px;font-size:13px;cursor:pointer}
-    /* Barra navigazione inferiore stile App Mobile */
     .nav-bar{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--bd);display:flex;justify-content:space-around;padding:8px 0 max(8px,env(safe-area-inset-bottom));z-index:100}
     .tab{border:0;background:transparent;color:var(--mut);font:inherit;font-size:11px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;flex:1}
     .tab span{font-size:18px}
@@ -53,12 +52,12 @@
   <button class="refresh-btn" onclick="loadData()">&#x21bb; Aggiorna</button>
 </div>
 
-<!-- TAB 1: CONFRONTO (Schermata Principale) -->
+<!-- TAB 1: CONFRONTO -->
 <div id="tab-compare">
   <div class="card">
-    <h2>Classifica Squadra (Ordinata per RP)</h2>
+    <h2>Classifica Squadra (Oggi dalle 04:00)</h2>
     <div class="wrap"><table>
-      <thead><tr><th>#</th><th>Giocatore</th><th>Grado</th><th>RP</th><th>RP 24h</th><th>Kill 24h</th></tr></thead>
+      <thead><tr><th>#</th><th>Giocatore</th><th>Grado</th><th>RP</th><th>RP Oggi</th><th>Kill</th><th>Partite</th></tr></thead>
       <tbody id="compare-table"></tbody>
     </table></div>
   </div>
@@ -74,9 +73,9 @@
     <div class="row" style="margin-bottom:12px">
       <select id="player-recap"></select>
       <select id="period-recap">
-        <option value="day">Ultime 24 ore</option>
-        <option value="week">Ultimi 7 giorni</option>
-        <option value="month">Ultimi 30 giorni</option>
+        <option value="day">Oggi (dalle 04:00)</option>
+        <option value="week">Questa settimana</option>
+        <option value="month">Questo mese</option>
       </select>
     </div>
     <div class="kpi-grid" id="recap-kpis"></div>
@@ -112,7 +111,6 @@
   </div>
 </div>
 
-<!-- BARRA NAVIGAZIONE INFERIORE -->
 <nav class="nav-bar">
   <button class="tab active" data-tab="compare"><span>&#x1F3C6;</span>Confronto</button>
   <button class="tab" data-tab="recap"><span>&#x1F4CA;</span>Resoconto</button>
@@ -168,7 +166,6 @@ const STAT_MAP = {
   'tactical_enemy_tethered': 'Nemici Intrappolati'
 };
 
-// Restituisce solo il nome pulito della statistica (senza prefisso leggenda, utile nei gruppi)
 function shortStatLabel(k) {
   if (STAT_MAP[k]) return STAT_MAP[k];
   if (k.startsWith('total.')) {
@@ -182,7 +179,6 @@ function shortStatLabel(k) {
   return k;
 }
 
-// Restituisce nome completo (usato nelle tabelle miste come "Ultime variazioni")
 function labelKey(k) {
   if (STAT_MAP[k]) return STAT_MAP[k];
   if (k.startsWith('total.')) return 'Generale \u2014 ' + shortStatLabel(k);
@@ -191,6 +187,15 @@ function labelKey(k) {
     return leg + ' \u2014 ' + shortStatLabel(k);
   }
   return k;
+}
+
+// Filtra variazioni anomale dovute a nuovi tracker equipaggiati sul banner
+function isValidDelta(key, diff) {
+  if (key !== 'rank_score' && diff <= 0) return false;
+  if ((key.endsWith('.kills') || key.endsWith('.specialEvent_kills')) && diff > 40) return false;
+  if ((key.endsWith('.damage') || key.endsWith('.specialEvent_damage')) && diff > 8000) return false;
+  if (key.endsWith('.games_played') && diff > 20) return false;
+  return true;
 }
 
 const RANK_TIERS = [
@@ -290,7 +295,6 @@ function initSelectors() {
   });
 }
 
-// Popola il menu a tendina del Grafico dividendo Generali e Leggende con <optgroup>
 function fillKeys() {
   const uid = $('player').value;
   const keys = [...new Set(D.changes.filter(c => c[1] === uid).map(c => c[2]))];
@@ -332,19 +336,61 @@ function fillKeys() {
   $('key').value = keys.includes(sk) ? sk : (keys.includes('rank_score') ? 'rank_score' : (keys[0] || ''));
 }
 
+// Calcolo periodico con inizio giornata alle 04:00 del mattino
+function calcPeriodStats(uid, period) {
+  const shifted = new Date(Date.now() - 4 * 3600 * 1000);
+  let start;
+
+  if (period === 'day') {
+    start = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate(), 4, 0, 0);
+  } else if (period === 'week') {
+    const day = shifted.getDay() || 7;
+    start = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate() - day + 1, 4, 0, 0);
+  } else {
+    start = new Date(shifted.getFullYear(), shifted.getMonth(), 1, 4, 0, 0);
+  }
+
+  const cutoff = Math.floor(start.getTime() / 1000);
+  const agg = {};
+
+  D.changes.filter(c => c[1] === uid && c[0] >= cutoff && c[3] !== null).forEach(r => {
+    const k = r[2];
+    const diff = Math.round((r[4] - r[3]) * 100) / 100;
+    if (!isValidDelta(k, diff)) return;
+
+    if (!agg[k]) agg[k] = { first: r[3], last: r[4], delta: 0, count: 0 };
+    agg[k].last = r[4];
+    agg[k].delta = Math.round((agg[k].delta + diff) * 100) / 100;
+    agg[k].count += 1;
+  });
+  return agg;
+}
+
+function getKillsFromAgg(agg) {
+  if (agg['total.kills']) return agg['total.kills'].delta;
+  if (agg['total.specialEvent_kills']) return agg['total.specialEvent_kills'].delta;
+  return Object.keys(agg).filter(k => k.endsWith('.kills')).reduce((a, b) => a + agg[b].delta, 0);
+}
+
+function getDamageFromAgg(agg) {
+  if (agg['total.damage']) return agg['total.damage'].delta;
+  if (agg['total.specialEvent_damage']) return agg['total.specialEvent_damage'].delta;
+  return Object.keys(agg).filter(k => k.endsWith('.damage')).reduce((a, b) => a + agg[b].delta, 0);
+}
+
 function renderCompare() {
   const uids = Object.keys(D.status);
   const colors = ['#e0463a', '#3b7be3', '#1ea653', '#d4af37', '#a349e5'];
 
-  // Calcola RP attuali per ciascun giocatore e ordina in modo decrescente
   const rankedPlayers = uids.map((u, origIdx) => {
     const p = D.status[u] || {};
     const rpRows = D.changes.filter(c => c[1] === u && c[2] === 'rank_score');
     const curRp = rpRows.length ? rpRows[rpRows.length - 1][4] : -1;
-    const dAgg = calcPeriodStats(u, 86400);
+    const dAgg = calcPeriodStats(u, 'day');
     const rpD = dAgg['rank_score'] ? dAgg['rank_score'].delta : 0;
-    const kD = dAgg['total.kills'] ? dAgg['total.kills'].delta : 0;
-    return { uid: u, p, curRp, rpD, kD, color: colors[origIdx % colors.length] };
+    const kD = getKillsFromAgg(dAgg);
+    const matchesD = dAgg['rank_score'] ? dAgg['rank_score'].count : 0;
+    return { uid: u, p, curRp, rpD, kD, matchesD, color: colors[origIdx % colors.length] };
   }).sort((a, b) => b.curRp - a.curRp);
 
   $('compare-table').innerHTML = rankedPlayers.map((item, idx) => {
@@ -356,6 +402,7 @@ function renderCompare() {
       <td><b>${item.curRp >= 0 ? item.curRp : '\u2014'}</b></td>
       <td class="${item.rpD >= 0 ? 'up' : 'down'}">${item.rpD >= 0 ? '+' : ''}${item.rpD}</td>
       <td>${item.kD}</td>
+      <td>${item.matchesD}</td>
     </tr>`;
   }).join('');
 
@@ -380,30 +427,15 @@ function renderCompare() {
   });
 }
 
-function calcPeriodStats(uid, sec) {
-  const cutoff = Math.floor(Date.now() / 1000) - sec;
-  const agg = {};
-  D.changes.filter(c => c[1] === uid && c[0] >= cutoff && c[3] !== null).forEach(r => {
-    const k = r[2];
-    if (!agg[k]) agg[k] = { first: r[3], last: r[4], delta: 0, count: 0 };
-    agg[k].last = r[4];
-    agg[k].delta = Math.round((agg[k].delta + (r[4] - r[3])) * 100) / 100;
-    agg[k].count += 1;
-  });
-  return agg;
-}
-
 function renderRecap() {
   const uid = $('player-recap').value;
   const p = $('period-recap').value;
-  const agg = calcPeriodStats(uid, p === 'day' ? 86400 : (p === 'week' ? 604800 : 2592000));
+  const agg = calcPeriodStats(uid, p);
 
   const rp = agg['rank_score'] ? agg['rank_score'].delta : 0;
-  // Ogni variazione di rank_score corrisponde a 1 partita Ranked completata
   const rankedMatches = agg['rank_score'] ? agg['rank_score'].count : 0;
-
-  const kills = agg['total.kills'] ? agg['total.kills'].delta : Object.keys(agg).filter(k => k.endsWith('.kills')).reduce((a,b) => a + agg[b].delta, 0);
-  const dmg = agg['total.damage'] ? agg['total.damage'].delta : Object.keys(agg).filter(k => k.endsWith('.damage')).reduce((a,b) => a + agg[b].delta, 0);
+  const kills = getKillsFromAgg(agg);
+  const dmg = getDamageFromAgg(agg);
 
   $('recap-kpis').innerHTML = `
     <div class="kpi"><div class="kpi-title">Variazione RP</div><div class="kpi-val ${rp>=0?'up':'down'}">${rp>=0?'+':''}${rp}</div></div>
@@ -412,7 +444,6 @@ function renderRecap() {
     <div class="kpi"><div class="kpi-title">Partite Ranked</div><div class="kpi-val">${rankedMatches}</div></div>
   `;
 
-  // Separa statistiche generali da quelle raggruppate per leggenda
   const generalKeys = [];
   const legendGroups = {};
 
@@ -464,10 +495,10 @@ function renderMatches() {
       const k = item[2], diff = Math.round((item[4] - item[3]) * 100) / 100;
       if (k.startsWith('legend.')) legend = k.split('.')[1];
       if (k === 'rank_score') rpDiff = diff;
-      else if ((k.endsWith('.kills') || k.endsWith('.specialEvent_kills')) && diff > 0 && diff <= 40) {
+      else if ((k.endsWith('.kills') || k.endsWith('.specialEvent_kills')) && isValidDelta(k, diff)) {
         kills = Math.max(kills, diff);
       }
-      else if ((k.endsWith('.damage') || k.endsWith('.specialEvent_damage')) && diff > 0 && diff <= 10000) {
+      else if ((k.endsWith('.damage') || k.endsWith('.specialEvent_damage')) && isValidDelta(k, diff)) {
         dmg = Math.max(dmg, diff);
       }
       else if (k.endsWith('.wins') && diff > 0 && diff <= 5) {
