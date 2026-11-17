@@ -353,6 +353,14 @@ const rankBandsPlugin = {
   }
 };
 
+function lightenHex(hex, amt = 75) {
+  const num = parseInt(hex.replace('#', ''), 16);
+  const r = Math.min(255, (num >> 16) + amt);
+  const g = Math.min(255, ((num >> 8) & 0x00FF) + amt);
+  const b = Math.min(255, (num & 0x0000FF) + amt);
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+}
+
 // Plugin per linee orizzontali dall'ultimo punto + separatori inizio giornata (04:00)
 const rpGuidesPlugin = {
   id: 'rpGuides',
@@ -390,32 +398,41 @@ const rpGuidesPlugin = {
       }
     }
 
-    // 2. Linea orizzontale tratteggiata dall'ultimo punto di ciascuna serie
+    // 2. Linea orizzontale tratteggiata + punto finale luminoso
     chart.data.datasets.forEach((ds, idx) => {
       const meta = chart.getDatasetMeta(idx);
       if (meta.hidden || !meta.data.length) return;
       const lastEl = meta.data[meta.data.length - 1];
       if (!lastEl) return;
 
+      const baseColor = ds.borderColor || '#ffffff';
+      const lightColor = lightenHex(baseColor, 75);
       const xPos = lastEl.x;
       const yPos = lastEl.y;
+
       if (yPos >= top && yPos <= bottom) {
         ctx.beginPath();
         ctx.setLineDash([5, 5]);
-        ctx.strokeStyle = (ds.borderColor || '#ffffff') + '99';
+        ctx.strokeStyle = baseColor + '88';
         ctx.lineWidth = 1.5;
         ctx.moveTo(left, yPos);
         ctx.lineTo(right, yPos);
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Pallino evidenziato sull'ultimo valore
+        // Alone esterno morbido sul punto più recente
         ctx.beginPath();
-        ctx.arc(xPos, yPos, 4, 0, Math.PI * 2);
-        ctx.fillStyle = ds.borderColor || '#ffffff';
+        ctx.arc(xPos, yPos, 8, 0, Math.PI * 2);
+        ctx.fillStyle = baseColor + '33';
+        ctx.fill();
+
+        // Punto più recente ben visibile (tonalità chiara della linea)
+        ctx.beginPath();
+        ctx.arc(xPos, yPos, 4.5, 0, Math.PI * 2);
+        ctx.fillStyle = lightColor;
         ctx.fill();
         ctx.lineWidth = 1.5;
-        ctx.strokeStyle = '#121418';
+        ctx.strokeStyle = baseColor;
         ctx.stroke();
       }
     });
@@ -426,6 +443,7 @@ const rpGuidesPlugin = {
 
 function buildPointStyles(rows, baseColor) {
   const seenDays = new Set();
+  const lightColor = lightenHex(baseColor, 75);
   const radii = [];
   const bgColors = [];
   const borderColors = [];
@@ -435,12 +453,19 @@ function buildPointStyles(rows, baseColor) {
     const isDayStart = !seenDays.has(dayKey);
     if (isDayStart) seenDays.add(dayKey);
 
-    if (isDayStart || i === rows.length - 1) {
-      radii.push(5);
-      bgColors.push('#ffffff');
+    if (i === rows.length - 1) {
+      // Ultimo punto: più grande e luminoso
+      radii.push(4.5);
+      bgColors.push(lightColor);
       borderColors.push(baseColor);
+    } else if (isDayStart) {
+      // Inizio giornata: discreto ma riconoscibile
+      radii.push(3.2);
+      bgColors.push(baseColor);
+      borderColors.push('#121418');
     } else {
-      radii.push(2);
+      // Punti intermedi: minimali
+      radii.push(1.5);
       bgColors.push(baseColor);
       borderColors.push(baseColor);
     }
