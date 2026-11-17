@@ -44,8 +44,8 @@ function buildSquadTips(squadPlayers) {
     const isLowKills = item.matchesD > 0 && item.kD < item.matchesD * 0.6;
     const isDominantKills = item.matchesD > 0 && item.kD >= item.matchesD * 0.75;
     const isWarmupOrFlat = (item.matchesD <= 2 && item.rpD > -100 && item.rpD < 120) || (Math.abs(item.rpD) <= 45);
-    const isTiltMarathon =
-      (item.matchesD >= 40 && item.rpD < 100) ||
+const isTiltMarathon =
+      (item.matchesD >= 40 && item.rpD < 0) ||
       (item.matchesD >= 30 && item.rpD <= -50) ||
       (item.matchesD >= 20 && item.rpD < -100 && isLowKills);
 
@@ -178,13 +178,14 @@ function isValidDelta(key, diff) {
 
 function getRealtimeBadge(p) {
   if (!p) return '<span class="dot dot-off"></span>Offline';
-  if (p.is_in_game) {
-    const txt = p.state_text ? esc(p.state_text) : 'In partita';
-    return `<span class="dot dot-game"></span>${txt}`;
+  const st = (p.state_text || '').trim();
+  const stLower = st.toLowerCase();
+
+  if (p.is_in_game || stLower.includes('match') || stLower.includes('partita') || stLower.includes('game')) {
+    return `<span class="dot dot-game"></span>${esc(st || 'In partita')}`;
   }
-  if (p.is_online) {
-    const txt = p.state_text ? esc(p.state_text) : 'In lobby';
-    return `<span class="dot dot-lobby"></span>${txt}`;
+  if (p.is_online || (st && stLower !== 'offline')) {
+    return `<span class="dot dot-lobby"></span>${esc(st || 'In lobby')}`;
   }
   return '<span class="dot dot-off"></span>Offline';
 }
