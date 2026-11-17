@@ -12,6 +12,12 @@ const FALLBACK_TIPS = {
 };
 let COACH_TIPS = FALLBACK_TIPS;
 
+const $ = id => document.getElementById(id);
+const fmt = t => new Date(t * 1000).toLocaleString('it-IT', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+const fmtTime = t => new Date(t * 1000).toLocaleTimeString('it-IT', {hour:'2-digit',minute:'2-digit'});
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const store = {get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+
 function buildSquadTips(squadPlayers) {
   const box = $('squad-tips');
   const activePlayers = squadPlayers.filter(item => {
