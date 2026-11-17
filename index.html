@@ -793,7 +793,9 @@ function renderMatches() {
     const hasRpInLast = last && last.items.some(i => i[2] === 'rank_score');
     const isRpNow = c[2] === 'rank_score';
 
-    const maxGap = (hasRpInLast && isRpNow) ? 180 : 600;
+    // Due variazioni di rank_score separate da almeno 1 minuto sono sempre due partite distinte;
+    // se invece manca ancora rank_score o mancano le stats della leggenda, unisce fino a 8 minuti (480s).
+    const maxGap = (hasRpInLast && isRpNow) ? 60 : 480;
 
     if (last && (c[0] - last.ts) <= maxGap) {
       last.items.push(c);
@@ -822,21 +824,24 @@ function renderMatches() {
 
   $('matches-list').innerHTML = dayGroups.map(grp => {
     const cardsHtml = grp.matches.map(s => {
-      let legend = 'Partita', rpDiff = null, kills = 0, dmg = 0, wins = 0;
+      let legend = 'Partita', rpDiff = null, wins = 0;
+      let totalKills = 0, legendKills = 0, totalDmg = 0, legendDmg = 0;
+
       s.items.forEach(item => {
         const k = item[2], diff = Math.round((item[4] - item[3]) * 100) / 100;
+        if (!isValidDelta(k, diff)) return;
+
         if (k.startsWith('legend.')) legend = k.split('.')[1];
         if (k === 'rank_score') rpDiff = (rpDiff || 0) + diff;
-        else if ((k.endsWith('.kills') || k.endsWith('.specialEvent_kills')) && isValidDelta(k, diff)) {
-          kills = Math.max(kills, diff);
-        }
-        else if ((k.endsWith('.damage') || k.endsWith('.specialEvent_damage')) && isValidDelta(k, diff)) {
-          dmg = Math.max(dmg, diff);
-        }
-        else if (k.endsWith('.wins') && diff > 0 && diff <= 5) {
-          wins = Math.max(wins, diff);
-        }
+        else if (k === 'total.kills' || k === 'total.specialEvent_kills') totalKills += diff;
+        else if (k.endsWith('.kills') || k.endsWith('.specialEvent_kills')) legendKills += diff;
+        else if (k === 'total.damage' || k === 'total.specialEvent_damage') totalDmg += diff;
+        else if (k.endsWith('.damage') || k.endsWith('.specialEvent_damage')) legendDmg += diff;
+        else if (k.endsWith('.wins') && diff > 0 && diff <= 5) wins = Math.max(wins, diff);
       });
+
+      const kills = totalKills > 0 ? totalKills : legendKills;
+      const dmg = totalDmg > 0 ? totalDmg : legendDmg;
 
       const rpHtml = rpDiff !== null
         ? `<span class="badge ${rpDiff>=0?'up':'down'}">RP ${rpDiff>=0?'+':''}${rpDiff}</span>`
