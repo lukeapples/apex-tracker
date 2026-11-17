@@ -728,9 +728,20 @@ function renderMatches() {
   ev.forEach(c => {
     const last = sessions[sessions.length - 1];
     const hasRpInLast = last && last.items.some(i => i[2] === 'rank_score');
+    const hasLegendInLast = last && last.items.some(i => i[2].startsWith('legend.'));
     const isRpNow = c[2] === 'rank_score';
+    const isLegendNow = c[2].startsWith('legend.');
 
-    const maxGap = (hasRpInLast && isRpNow) ? 60 : 480;
+    // 1. Due variazioni di rank_score separate da almeno 1 minuto sono sempre due partite distinte.
+    // 2. Se una partita ha già sia rank_score che leggenda, chiudiamo a 8 minuti (480s) per eventi extra.
+    // 3. Se manca ancora rank_score o manca ancora la leggenda, aspettiamo fino a 22 minuti (1320s),
+    //    ovvero la durata massima completa di una Ranked inclusi caricamento e premiazione finale.
+    let maxGap = 480;
+    if (hasRpInLast && isRpNow) {
+      maxGap = 60;
+    } else if ((!hasRpInLast && isRpNow) || (!hasLegendInLast && isLegendNow)) {
+      maxGap = 1320;
+    }
 
     if (last && (c[0] - last.ts) <= maxGap) {
       last.items.push(c);
@@ -759,7 +770,7 @@ function renderMatches() {
 
   $('matches-list').innerHTML = dayGroups.map(grp => {
     const cardsHtml = grp.matches.map(s => {
-      let legend = 'Partita', rpDiff = null, wins = 0;
+      let legend = null, rpDiff = null, wins = 0;
       let totalKills = 0, legendKills = 0, totalDmg = 0, legendDmg = 0;
 
       s.items.forEach(item => {
@@ -778,13 +789,17 @@ function renderMatches() {
       const kills = totalKills > 0 ? totalKills : legendKills;
       const dmg = totalDmg > 0 ? totalDmg : legendDmg;
 
+      const legendHtml = legend
+        ? `<b>${esc(legend)} ${wins > 0 ? '\uD83C\uDFC6' : ''}</b>`
+        : `<span class="mut" style="font-weight:600">Leggenda non disponibile</span> ${wins > 0 ? '\uD83C\uDFC6' : ''}`;
+
       const rpHtml = rpDiff !== null
         ? `<span class="badge ${rpDiff>=0?'up':'down'}">RP ${rpDiff>=0?'+':''}${rpDiff}</span>`
         : `<span class="badge mut">RP Non disponibili</span>`;
 
       return `<div class="match-card">
         <div>
-          <div><b>${esc(legend)} ${wins>0?'\uD83C\uDFC6':''}</b></div>
+          <div>${legendHtml}</div>
           <div class="time-pill">&#x1F552; ${fmtTime(s.ts)}</div>
         </div>
         <div class="row">${rpHtml}<span>Kill: <b>${kills}</b></span><span>Danni: <b>${dmg}</b></span></div>
