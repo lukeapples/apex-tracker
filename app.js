@@ -351,7 +351,7 @@ function buildPointStyles(rows, baseColor) {
 
 let chart, compareChart;
 let activeTab = 'compare';
-let compareDays = 1; // Default: ultime 24h nella vista Squadra
+let compareDays = 2; // Default: ultime 48h nella vista Squadra
 let overviewDays = 7;
 
 function setCompareRange(days, btn) {
