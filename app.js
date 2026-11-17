@@ -44,10 +44,14 @@ function buildSquadTips(squadPlayers) {
     const isLowKills = item.matchesD > 0 && item.kD < item.matchesD * 0.6;
     const isDominantKills = item.matchesD > 0 && item.kD >= item.matchesD * 0.75;
     const isWarmupOrFlat = (item.matchesD <= 2 && item.rpD > -100 && item.rpD < 120) || (Math.abs(item.rpD) <= 45);
-    const isTiltMarathon = (item.matchesD >= 40 && item.rpD < 100) || (item.matchesD >= 20 && item.rpD < -100 && isLowKills);
-    let cat = 'good';
-    let tag = 'Saldo positivo';
-    let cls = 'tip-good';
+    const isTiltMarathon =
+      (item.matchesD >= 40 && item.rpD < 100) ||
+      (item.matchesD >= 30 && item.rpD <= -50) ||
+      (item.matchesD >= 20 && item.rpD < -100 && isLowKills);
+
+    let cat = 'limbo';
+    let tag = 'In bilico';
+    let cls = '';
 
     if (item.matchesD === 0) {
       cat = 'idle';
@@ -62,22 +66,26 @@ function buildSquadTips(squadPlayers) {
       cat = 'lowRp';
       tag = `Allarme RP (${item.rpD})`;
       cls = 'tip-rp';
-    } else if (isWarmupOrFlat) {
-      cat = 'limbo';
-      const rpSign = item.rpD >= 0 ? '+' : '';
-      tag = `In bilico (${rpSign}${item.rpD} RP · ${item.matchesD} part.)`;
-      cls = '';
     } else if (item.rpD < -45 && isLowKills) {
       cat = 'lowKills';
       tag = `Mira fredda (${item.kD} kill / ${item.matchesD} part.)`;
+      cls = 'tip-kills';
+    } else if (isWarmupOrFlat || item.rpD <= 45) {
+      // Copre sia il limbo classico (±45 RP / prime 2 partite) sia chi è tra -99 e -46 RP ma con buone kill
+      cat = 'limbo';
+      const rpSign = item.rpD >= 0 ? '+' : '';
+      tag = item.rpD < -45
+        ? `Kill ok (${item.kD}/${item.matchesD}), RP ${item.rpD}`
+        : `In bilico (${rpSign}${item.rpD} RP · ${item.matchesD} part.)`;
       cls = 'tip-kills';
     } else if (item.rpD >= 100 && isDominantKills) {
       cat = 'dominant';
       tag = `Dominio (+${item.rpD} RP · ${item.kD} kill)`;
       cls = 'tip-good';
     } else {
+      // Qui entra SOLO chi ha effettivamente rpD > 45!
       cat = 'good';
-      tag = item.rpD >= 0 ? `In positivo (+${item.rpD} RP)` : `Buone kill (${item.kD}/${item.matchesD})`;
+      tag = `In positivo (+${item.rpD} RP)`;
       cls = 'tip-good';
     }
 
