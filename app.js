@@ -47,10 +47,10 @@ function buildSquadTips(squadPlayers) {
     let tag = 'Saldo positivo';
     let cls = 'tip-good';
 
-    if (item.matchesD === 0) {
+if (item.matchesD === 0) {
       cat = 'idle';
       tag = isOnline ? 'Pre-partita' : 'In attesa (Offline)';
-      cls = '';
+      cls = 'tip-idle';
     } else if (item.matchesD > 20 && item.rpD < 0) {
       cat = 'tiltMarathon';
       tag = `Maratona Tilt (${item.rpD} RP · ${item.matchesD} part.)`;
