@@ -565,6 +565,22 @@ function getDamageFromAgg(agg) {
   return Object.keys(agg).filter(k => k.endsWith('.damage')).reduce((a, b) => a + agg[b].delta, 0);
 }
 
+function getSegmentStyle(hexColor) {
+  const isPause = (ctx) => {
+    const diff = Math.abs(ctx.p1.parsed.x - ctx.p0.parsed.x);
+    return diff > 2700000; // 45 minuti in millisecondi
+  };
+
+  return {
+    borderColor: (ctx) => {
+      if (!isPause(ctx)) return hexColor;
+      return hexColor.length === 7 ? hexColor + '38' : hexColor; // Colore sbiadito (22% opacità)
+    },
+    borderDash: (ctx) => (isPause(ctx) ? [4, 4] : undefined), // Linea tratteggiata
+    borderWidth: (ctx) => (isPause(ctx) ? 1.5 : 2.5) // Linea più sottile
+  };
+}
+
 function renderCompare() {
   const uids = Object.keys(D.status);
   const colors = ['#e0463a', '#3b7be3', '#1ea653', '#d4af37', '#a349e5'];
@@ -609,6 +625,7 @@ function renderCompare() {
       data: rows.map(r => ({ x: r[0] * 1000, y: Math.round((r[4] - baseVal) * 100) / 100 })),
       borderColor: item.color,
       backgroundColor: item.color,
+      segment: getSegmentStyle(item.color),
       pointRadius: styles.radii,
       pointBackgroundColor: styles.bgColors,
       pointBorderColor: styles.borderColors,
