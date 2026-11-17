@@ -65,17 +65,17 @@
 
 <div class="map-bar hidden" id="map-bar"></div>
 
-<!-- TAB 1: CONFRONTO -->
+<!-- TAB 1: Squadra -->
 <div id="tab-compare">
   <div class="card">
-    <h2>Panoramica Squadra (Oggi dalle 04:00)</h2>
+    <h2>Panoramica Squadra</h2>
     <div class="wrap"><table>
       <thead><tr><th>Giocatore</th><th>Grado</th><th>RP</th><th>RP Oggi</th><th>Kill</th><th>Partite</th></tr></thead>
       <tbody id="compare-table"></tbody>
     </table></div>
   </div>
   <div class="card">
-    <h2>Confronto Andamento RP</h2>
+    <h2>Andamento RP</h2>
     <div style="height:280px;position:relative"><canvas id="chart-compare"></canvas></div>
   </div>
 </div>
@@ -86,7 +86,7 @@
     <div class="row" style="margin-bottom:10px">
       <select id="player-recap"></select>
       <select id="period-recap">
-        <option value="day">Oggi (dalle 04:00)</option>
+        <option value="day">Oggi</option>
         <option value="week">Questa settimana</option>
         <option value="month">Questo mese</option>
       </select>
@@ -126,7 +126,7 @@
 </div>
 
 <nav class="nav-bar">
-  <button class="tab active" data-tab="compare"><span>&#x1F465;</span>Confronto</button>
+  <button class="tab active" data-tab="compare"><span>&#x1F465;</span>Squadra</button>
   <button class="tab" data-tab="recap"><span>&#x1F4CA;</span>Resoconto</button>
   <button class="tab" data-tab="matches"><span>&#x1F3AE;</span>Partite</button>
   <button class="tab" data-tab="overview"><span>&#x1F4C8;</span>Grafico</button>
