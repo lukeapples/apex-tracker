@@ -41,13 +41,14 @@ function buildSquadTips(squadPlayers) {
   const cards = squadPlayers.map((item, idx) => {
     const name = esc(item.p.name || item.uid);
     const isOnline = item.p && (item.p.is_online || item.p.is_in_game);
-    const hasHighKills = item.matchesD > 0 && item.kD >= item.matchesD * 0.75;
+    const isLowKills = item.matchesD > 0 && item.kD < item.matchesD * 0.6;
+    const isDominantKills = item.matchesD > 0 && item.kD >= item.matchesD * 0.75;
     const isWarmupOrFlat = (item.matchesD <= 2 && item.rpD > -100 && item.rpD < 120) || (Math.abs(item.rpD) <= 45);
     let cat = 'good';
     let tag = 'Saldo positivo';
     let cls = 'tip-good';
 
-if (item.matchesD === 0) {
+    if (item.matchesD === 0) {
       cat = 'idle';
       tag = isOnline ? 'Pre-partita' : 'In attesa (Offline)';
       cls = 'tip-idle';
@@ -64,11 +65,11 @@ if (item.matchesD === 0) {
       const rpSign = item.rpD >= 0 ? '+' : '';
       tag = `In bilico (${rpSign}${item.rpD} RP · ${item.matchesD} part.)`;
       cls = '';
-    } else if (item.rpD < -45 && !hasHighKills) {
+    } else if (item.rpD < -45 && isLowKills) {
       cat = 'lowKills';
       tag = `Mira fredda (${item.kD} kill / ${item.matchesD} part.)`;
       cls = 'tip-kills';
-    } else if (item.rpD >= 100 && hasHighKills) {
+    } else if (item.rpD >= 100 && isDominantKills) {
       cat = 'dominant';
       tag = `Dominio (+${item.rpD} RP · ${item.kD} kill)`;
       cls = 'tip-good';
