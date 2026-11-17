@@ -14,7 +14,17 @@
     "\"Perdere punti così facilmente, la via per il Lato Oscuro è. Jumpmaster prendere tu devi, giovane Padawan.\"",
     "\"Che cosa ci fate nella MIA palude?!\" — I tre team che hai appena pushato da solo in campo aperto.",
     "Un solo anello per domarli, un solo hot-drop per mandarli tutti in lobby al ventesimo posto.",
-    "\"Strade? Dove atterriamo noi non c'è bisogno di strade... e nemmeno punti RP, a quanto pare.\""
+    "\"Strade? Dove atterriamo noi non c'è bisogno di strade... e nemmeno punti RP, a quanto pare.\"",
+    "\"E se i draghetti gli fanno i dispetti?!\" — Il tuo team mentre ti guarda atterrare a Fragment o Quarantine Zone.",
+    "\"Harry, acqua!\" — Quello che ti serve dopo la sudata fredda per aver perso altri 100 RP.",
+    "Neanche un Giratempo di Hermione basterebbe a recuperare gli RP che hai bruciato negli ultimi venti minuti.",
+    "\"Avada Kedavra\" ai tuoi punti Ranked: spariti in un lampo verde appena hai toccato terra.",
+    "Stai facendo più speedrun verso la lobby di una Wraith che quitta appena le rompono lo scudo.",
+    "Neanche Revenant nel suo giorno peggiore odia così tanto restare vivo oltre il primo anello.",
+    "Se il tuo piano era testare se le Mozambico battono un R-99 rosso, direi che l'esperimento è fallito.",
+    "Hai usato più palloni di evacuazione per scappare dentro la tempesta che per fare rotazioni decenti.",
+    "Anche Horizon farebbe fatica a calcolare una traiettoria di fuga per salvarti da questi drop suicidi.",
+    "Bloodhound ha scansionato l'area: rilevati 0 RP guadagnati e 12 nemici che ti aspettano dietro l'angolo."
   ],
   "lowKills": [
     "Stai facendo più turismo panoramico che combattimenti. Resta incollato ai compagni e spara allo stesso bersaglio!",
@@ -31,7 +41,17 @@
     "\"Gli orchi sono come le cipolle: hanno tanti strati.\" Tu invece in fight non hai neanche una copertura dietro cui nasconderti.",
     "\"Ehi Doc, abbiamo un problema: il contatore delle kill è rimasto fermo al 1985!\" Stai più vicino ai compagni!",
     "\"TU NON HAI NESSUN POTERE QUI!\" — Il \"pro\" nemico quando gli spari da 200 metri senza il resto della squadra.",
-    "\"Ciuchino, due cose: chiudi il becco e resta incollato alla squadra invece di pushare da solo!\""
+    "\"Ciuchino, due cose: chiudi il becco e resta incollato alla squadra invece di pushare da solo!\"",
+    "\"Sei un mago, Harry!\" — Sì, perché riesci a far sparire interi caricatori di R-301 senza colpire nemmeno un nemico.",
+    "Con questa mira sembra che tu stia lanciando \"Expelliarmus\" invece di sparare proiettili veri. Usa i ripari!",
+    "Il tuo danno è talmente basso che \"Tu-Sai-Chi\" non si degna neanche di nominarti nel killfeed.",
+    "Non sei Octane con la stim attiva: smettila di correre in campo aperto come se avessi uno scudo infinito.",
+    "Persino i manichini del Poligono di tiro stanno chiedendo se hai bisogno di un mirino 1x o di un paio d'occhiali.",
+    "Newcastle e Rampart mettono muri ovunque, ma tu riesci comunque a farti atterrare in mezzo alla strada.",
+    "Mirage ha più kill con le sue esce olografiche di quante ne hai fatte tu con un Flatline oro.",
+    "Stai lootando così tanto che sembri Loba al mercatino dell'usato: ora però esci da quella cassa e aiuta il team!",
+    "Un Kraber nelle tue mani al momento ha lo stesso potere offensivo di una cella scudo lanciata addosso al nemico.",
+    "Pathfinder ti ha lasciato la zipline, Wraith il portale e Ash lo squarcio... e tu sei riuscito lo stesso a restare indietro."
   ],
   "good": [
     "Oggi stai carriando la lobby: ricordati di fare stretching alla schiena per tutto il peso che stai portando.",
@@ -44,11 +64,17 @@
     "Prestazione da manuale: pochi fronzoli, tanti danni e punti in cassaforte.",
     "\"Forte in te scorre la Forza oggi. Ma attenzione al Lato Oscuro dell'over-push, giovane Padawan.\"",
     "\"1.21 Gigawatt di danni!\" Quando questo giocatore tocca le 88 miglia orarie, ne vedrete delle belle.",
-    "\"Questo conta comunque come uno solo!\" — Gimli mentre ti guarda fare squadra wipe da solo.",
-    "\"Andrà bene così, Ciuchino. Andrà bene così.\" — Tu dopo aver carriato l'ennesimo fight impossibile.",
+    "\"Questo conta comunque come uno!\" — Gimli mentre ti guarda eliminare una squadra da solo.",
+    "\"Va bene così, Ciuchino. Va bene così.\" — Tu dopo aver carriato l'ennesimo fight impossibile.",
     "\"Un supporto non è mai in ritardo, né in anticipo: arriva precisamente quando serve salvare la squadra.\"",
     "\"Potente sei diventato, il Lato Oscuro dei tuoi avversari percepisco.\"",
-    "Se continui a sciogliere team così, tra poco ti chiedono di forgiare l'Unico Anello direttamente a Monte Fato."
+    "Se continui a sciogliere team così, tra poco ti chiedono di forgiare l'Unico Anello direttamente a Monte Fato.",
+    "\"Harry, acqua!\" — Quella che devono bere i nemici per riprendersi dopo che li hai sciolti con il Volt.",
+    "Oggi tiri certi colpi di Wingman che neanche la Bacchetta di Sambuco nelle mani di Silente.",
+    "Persino Tu-Sai-Chi cambia server quando vede il tuo nome apparire come Kill Leader.",
+    "Tra poco Blisk scende personalmente dalla navicella per consegnarti il biglietto degli Apex Games.",
+    "Stai spazzando via la lobby più velocemente di un Buco Nero di Horizon combinato con tre stelle Arc.",
+    "Se continui così, tra poco ti nerfano nella prossima patch insieme alla Nemesis."
   ],
   "idle": [
     "Ancora 0 partite oggi: il riscaldamento in Poligono è finito, ora tocca andare a sudare in Ranked.",
@@ -60,6 +86,10 @@
     "\"Pronto sei, giovane Padawan? In lobby il tempo scorre, ma gli RP da soli non salgono.\"",
     "\"Allaccia le cinture, Marty: stiamo per avviare la prima partita della serata!\"",
     "\"Meglio fuori che dentro, dico sempre io!\" — E tu sei ancora dentro la lobby invece che sul dropship.",
-    "\"Non c'è tempo da perdere, Frodo: la Contea non si salva restando fermi nel menu principale.\""
+    "\"Non c'è tempo da perdere, Frodo: la Contea non si salva restando fermi nel menu principale.\"",
+    "Il Cappello Parlante ha deciso: niente Tassorosso o Serpeverde, stasera si va dritti in Platino/Diamante!",
+    "\"E se i draghetti ti fanno i dispetti?\" — Tranquillo, su Olympus e E-District non ci sono draghi, solo third-party!",
+    "Controlla di non avere il Crossplay disattivato e premi Pronto: Nessie non scalerà la classifica al posto tuo.",
+    "Scegli bene la leggenda e controlla le munizioni: la prima partita decide l'umore di tutta la serata."
   ]
 }
