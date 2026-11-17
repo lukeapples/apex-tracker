@@ -552,10 +552,22 @@ function renderMatches() {
   const uid = $('player-matches').value;
   const ev = D.changes.filter(c => c[1] === uid && c[3] !== null);
   const sessions = [];
+
   ev.forEach(c => {
     const last = sessions[sessions.length - 1];
-    if (last && (c[0] - last.ts) <= 240) last.items.push(c);
-    else sessions.push({ ts: c[0], items: [c] });
+    const hasRpInLast = last && last.items.some(i => i[2] === 'rank_score');
+    const isRpNow = c[2] === 'rank_score';
+
+    // Unisce gli eventi nella stessa partita se entro 4 minuti,
+    // oppure entro 10 minuti se uno dei due blocchi non ha ancora i punti RP
+    const maxGap = (hasRpInLast && isRpNow) ? 180 : 600;
+
+    if (last && (c[0] - last.ts) <= maxGap) {
+      last.items.push(c);
+      last.ts = c[0]; // aggiorna il timestamp all'ultimo dato della partita
+    } else {
+      sessions.push({ ts: c[0], items: [c] });
+    }
   });
 
   const list = sessions.reverse().slice(0, 35);
@@ -564,7 +576,7 @@ function renderMatches() {
     s.items.forEach(item => {
       const k = item[2], diff = Math.round((item[4] - item[3]) * 100) / 100;
       if (k.startsWith('legend.')) legend = k.split('.')[1];
-      if (k === 'rank_score') rpDiff = diff;
+      if (k === 'rank_score') rpDiff = (rpDiff || 0) + diff;
       else if ((k.endsWith('.kills') || k.endsWith('.specialEvent_kills')) && isValidDelta(k, diff)) {
         kills = Math.max(kills, diff);
       }
@@ -575,7 +587,9 @@ function renderMatches() {
         wins = Math.max(wins, diff);
       }
     });
-    const rpHtml = rpDiff !== null ? `<span class="badge ${rpDiff>=0?'up':'down'}">RP ${rpDiff>=0?'+':''}${rpDiff}</span>` : `<span class="badge">Pubblica</span>`;
+    const rpHtml = rpDiff !== null
+      ? `<span class="badge ${rpDiff>=0?'up':'down'}">RP ${rpDiff>=0?'+':''}${rpDiff}</span>`
+      : `<span class="badge mut">RP Non disponibili</span>`;
     return `<div class="match-card">
       <div><b>${esc(legend)} ${wins>0?'\uD83C\uDFC6':''}</b><div class="mut">${fmt(s.ts)}</div></div>
       <div class="row">${rpHtml}<span>Kill: <b>${kills}</b></span><span>Danni: <b>${dmg}</b></span></div>
