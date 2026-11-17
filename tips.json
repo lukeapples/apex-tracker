@@ -24,7 +24,12 @@
     "Se il tuo piano era testare se il Mozambico senza Hammerpoint batte un R-99 rosso, direi che l'esperimento è fallito.",
     "Hai usato più palloni di evacuazione per scappare dentro la tempesta che per fare rotazioni decenti.",
     "Persino Horizon farebbe fatica a calcolare una traiettoria di fuga per salvarti da questi drop suicidi.",
-    "Bloodhound ha scansionato l'area: rilevati 0 RP guadagnati e 12 nemici che ti aspettano dietro l'angolo."
+    "Bloodhound ha scansionato l'area: rilevati 0 RP guadagnati e 12 nemici che ti aspettano dietro l'angolo.",
+    "\"È finita, Anakin! Sto più in alto di te!\" — Il nemico che ti ha appena sciolto mentre provavi a prendere l'aigraund da solo.",
+    "Abbandonare la squadra per scalare un tetto a 100 metri non è strategia: è solamente regalare gli RP alla lobby.",
+    "Carino quell'aigraund... peccato ci fossero già tre team sopra!",
+    "Gli spazi alti sono importanti, ma serve a poco se nel frattempo i tuoi compagni devono giocarsi un 3vs2 sotto di te.",
+    "\"Tu sottovaluti il mio potere\" — Solita prepotenza prima di essere distrutto da un team posizionato meglio di te."
   ],
   "lowKills": [
     "Stai facendo più turismo panoramico che combattimenti. Resta incollato ai compagni e spara allo stesso bersaglio!",
@@ -51,7 +56,10 @@
     "Mirage ha più kill con le sue esce olografiche di quante ne hai fatte tu con un Flatline oro.",
     "Stai lootando così tanto che sembri Loba al mercatino dell'usato: ora però esci da quella cassa e aiuta il team!",
     "Un Kraber nelle tue mani al momento ha lo stesso potere offensivo di una cella scudo lanciata addosso al nemico.",
-    "Pathfinder ti ha lasciato la zipline, Wraith il portale e Ash lo squarcio... e tu sei riuscito lo stesso a restare indietro."
+    "Pathfinder ti ha lasciato la zipline, Wraith il portale e Ash lo squarcio... e tu sei riuscito lo stesso a restare indietro.",
+    "Bellissimo panorama da lassù, ma mentre cercavi l'aigraund i tuoi compagni combattevano da soli in basso!",
+    "Spoiler: prendere l'aigraund non fa danni da solo, bisogna anche sparare e tenere sott'occhio i compagni.",
+    "Meno scalate solitarie per l'aigraund e più fuoco incrociato con i compagni: le kill arrivano se si spara in tre!"
   ],
   "good": [
     "Rotazioni intelligenti e punti in cascina: magari non stai svuotando la lobby da solo, ma la classifica ringrazia!",
@@ -65,7 +73,8 @@
     "Ottima gestione dei tempi e delle coperture: continua a portare punti al sicuro e a coprire le spalle al team.",
     "\"Grande Giove, Doc! Il saldo RP è positivo!\" Continua a tenere questa rotta senza farti ingolosire dai fight inutili.",
     "La bussola di Jack Sparrow punterebbe dritta al tuo saldo RP oggi: direzione esatta!",
-    "Gioco di squadra solido: meno kill da copertina, ma tanta sostanza dove conta davvero."
+    "Gioco di squadra solido: meno kill da copertina, ma tanta sostanza dove conta davvero.",
+    "Stavolta l'highground lo avete preso insieme al momento giusto: rotazione pulita e punti in cassaforte!"
   ],
   "dominant": [
     "Oggi stai carriando la lobby: ricordati di fare stretching alla schiena per tutto il peso che stai portando.",
@@ -83,7 +92,8 @@
     "Stai spazzando via la lobby più velocemente di un Buco Nero di Horizon combinato con tre granate Arc Star.",
     "Con questo scudo EVO rosso già al secondo anello, sembri un raid boss finale di World's Edge.",
     "Bangalore ha finito le frasi per spiegare quanto stai giocando bene: \"R-99 qui, livello 4, nelle mani giuste è letale\".",
-    "Se continui così, tra poco ti nerfano nella prossima patch insieme alla Nemesis."
+    "Se continui così, tra poco ti nerfano nella prossima patch insieme alla Nemesis.",
+    "\"È finita! Sono più in alto di te!\" — Tu mentre sciogli l'ultima squadra dell'anello finale senza sbagliare un colpo."
   ],
   "idle": [
     "Ancora 0 partite oggi: il riscaldamento in Poligono è finito, ora tocca andare a sudare in Ranked.",
@@ -91,14 +101,15 @@
     "Oggi tabellone ancora immacolato. Fai tu il Jumpmaster alla prima così partite con il piede giusto!",
     "Motori spenti o in riscaldamento: vediamo se oggi si scalano divisioni o si collezionano biglietti per la lobby.",
     "Prima partita della sessione ancora da giocare: non regalare punti a freddo!",
-    "\"Un anello per domarli...\" ma prima bisogna accendere il PC/console e avviare la prima Ranked!",
+    "\"Un anello per domarli...\" ma prima bisogna scaldarsi e avviare la prima Ranked!",
     "\"Pronto sei, giovane Padawan? Senza giocare, gli RP da soli non salgono.\"",
     "\"Allaccia le cinture, Marty: stiamo per avviare la prima partita della serata!\"",
-    "\"Meglio fuori che dentro, dico sempre io!\" — E tu sei ancora fuori dalla partita invece che sul dropship.",
+    "\"Meglio fuori che dentro, dico sempre io!\" — E tu sei ancora fuori invece che sugli Apex Games.",
     "\"Non c'è tempo da perdere, Frodo: la Contea non si salva restando fermi fuori dalla lobby.\"",
     "Il Cappello Parlante ha deciso: niente Tassorosso o Serpeverde, oggi si va dritti in Platino/Diamante!",
-    "\"E se i draghetti gli fanno i dispetti?\" — Tranquillo, su Storm Point e Kings Canyon non ci sono draghi, solo third-party!",
+    "\"E se i draghetti gli fanno i dispetti?\" — Tranquillo, su E-District e Olympus non ci sono draghi, solo third-party!",
     "Appena entri, controlla di non avere il Crossplay disattivato: Nessie non scalerà la classifica al posto tuo.",
-    "Scegli bene la leggenda e controlla le munizioni: la prima partita decide l'umore di tutta la serata."
+    "Scegli bene la leggenda e controlla le munizioni: la prima partita decide l'umore di tutta la serata.",
+    "\"L'highground funziona se si è coperti da third-party e se non lasci i compagni a giocarsi un 3vs2 sotto di te\" — Breve briefing pre partita."
   ]
 }
