@@ -8,7 +8,7 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/8002/8002111.png",
+      "src": "favicon.png",
       "sizes": "512x512",
       "type": "image/png"
     }
