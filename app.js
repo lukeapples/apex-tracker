@@ -750,26 +750,21 @@ function renderMatches() {
   const ev = D.changes.filter(c => c[1] === uid && c[3] !== null);
   const sessions = [];
 
-  ev.forEach(c => {
+ev.forEach(c => {
     const last = sessions[sessions.length - 1];
     const hasRpInLast = last && last.items.some(i => i[2] === 'rank_score');
-    const hasLegendInLast = last && last.items.some(i => i[2].startsWith('legend.'));
     const isRpNow = c[2] === 'rank_score';
-    const isLegendNow = c[2].startsWith('legend.');
 
     // 1. Due variazioni di rank_score separate da almeno 1 minuto sono sempre due partite distinte.
     // 2. Se manca ancora rank_score (es. prima arrivano kill/danni e poi gli RP),
     //    aspettiamo fino a 22 minuti (1320s) per agganciare il risultato finale della stessa partita.
-    // 3. Se manca ancora la leggenda e arrivano tracker leggenda senza rank_score entro 10 minuti (600s),
-    //    li uniamo per assorbire i ritardi asincroni dei banner.
-    // 4. Altrimenti chiudiamo la finestra a 4 minuti (240s).
-    let maxGap = 240;
+    // 3. Altrimenti manteniamo 8 minuti (480s), che copre esattamente il ciclo di polling dell'API
+    //    (es. 22:44 RP +9 e 22:52 tracker Ash) senza mai scavalcare la partita successiva.
+    let maxGap = 480;
     if (hasRpInLast && isRpNow) {
       maxGap = 60;
     } else if (!hasRpInLast && isRpNow) {
       maxGap = 1320;
-    } else if (!hasLegendInLast && isLegendNow) {
-      maxGap = 600;
     }
 
     if (last && (c[0] - last.ts) <= maxGap) {
