@@ -7,6 +7,7 @@ import urllib.request
 
 API_KEY = os.environ.get("APEX_API_KEY", "").strip()
 API_URL = "https://api.mozambiquehe.re/bridge"
+MAP_URL = "https://api.mozambiquehe.re/maprotation"
 PLAYERS_FILE = "players.json"
 CSV_FILE = "changes.csv"
 DATA_FILE = "data.json"
@@ -15,7 +16,6 @@ def is_num(v):
     return isinstance(v, (int, float)) and not isinstance(v, bool)
 
 def fmt_num(v):
-    # Evita la notazione scientifica (es. 1.77e+06) che causava falsi cambiamenti
     return f"{int(round(v))}" if float(v).is_integer() else f"{v:.2f}"
 
 def get_metrics(data):
@@ -43,6 +43,31 @@ def get_metrics(data):
                     m[f"legend.{leg_name}.{k}"] = float(d["value"])
     return m
 
+def fetch_map_rotation():
+    try:
+        params = urllib.parse.urlencode({"auth": API_KEY, "version": "2"})
+        req = urllib.request.Request(
+            f"{MAP_URL}?{params}",
+            headers={"User-Agent": "ApexCloudTracker/1.2"}
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            raw = json.loads(resp.read().decode("utf-8"))
+        ranked = (raw.get("ranked") or {})
+        pubs = (raw.get("battle_royale") or {})
+        cur_r = ranked.get("current") or {}
+        nxt_r = ranked.get("next") or {}
+        cur_p = pubs.get("current") or {}
+        return {
+            "ranked_current": cur_r.get("map"),
+            "ranked_end": cur_r.get("end"),
+            "ranked_next": nxt_r.get("map"),
+            "pubs_current": cur_p.get("map"),
+            "pubs_end": cur_p.get("end")
+        }
+    except Exception as e:
+        print(f"Map rotation errore: {e}")
+        return None
+
 def main():
     if not API_KEY:
         raise RuntimeError("APEX_API_KEY non configurata nei GitHub Secrets.")
@@ -61,7 +86,6 @@ def main():
                 key = r["key"]
                 old = float(r["old"]) if r["old"] != "" else None
                 new = float(r["new"])
-                # Ignora righe inutili dove old == new già presenti nel vecchio CSV
                 if old is not None and round(old, 2) == round(new, 2):
                     latest[f"{uid}|{key}"] = new
                     continue
@@ -69,10 +93,13 @@ def main():
                 latest[f"{uid}|{key}"] = new
 
     status = {}
+    prev_maps = None
     if os.path.exists(DATA_FILE):
         try:
             with open(DATA_FILE, "r", encoding="utf-8") as f:
-                status = json.load(f).get("status", {})
+                old_data = json.load(f)
+                status = old_data.get("status", {})
+                prev_maps = old_data.get("maps")
         except Exception:
             status = {}
 
@@ -96,7 +123,7 @@ def main():
             })
             req = urllib.request.Request(
                 f"{API_URL}?{params}",
-                headers={"User-Agent": "ApexCloudTracker/1.1"}
+                headers={"User-Agent": "ApexCloudTracker/1.2"}
             )
             with urllib.request.urlopen(req, timeout=20) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
@@ -107,26 +134,33 @@ def main():
             g = data.get("global") or {}
             st["name"] = g.get("name") or st.get("name")
             st["level"] = g.get("level")
+            st["next_level_pct"] = g.get("toNextLevelPercent")
+
             rank = g.get("rank") or {}
             st["rank"] = rank.get("rankName")
             st["rank_div"] = rank.get("rankDiv")
+            st["rank_img"] = rank.get("rankImg")
+
+            rt = data.get("realtime") or {}
+            st["is_online"] = bool(rt.get("isOnline"))
+            st["is_in_game"] = bool(rt.get("isInGame"))
+            st["lobby_state"] = rt.get("lobbyState")
+            st["state_text"] = rt.get("currentStateAsText")
+            st["selected_legend"] = rt.get("selectedLegend")
 
             now = int(time.time())
             st["last_ok"] = now
             st["last_error"] = None
 
             metrics = get_metrics(data)
+            player_rows = 0
             for k, v in metrics.items():
                 ident = f"{uid}|{k}"
                 has = ident in latest
                 old = latest[ident] if has else None
 
-                # Confronta arrotondando a 2 decimali per evitare falsi positivi
                 if has and round(old, 2) == round(v, 2):
                     continue
-
-                # Le statistiche cumulative (tutto tranne rank_score) non possono mai scendere:
-                # se scendono è un glitch momentaneo dell'API, lo ignoriamo.
                 if has and k != "rank_score" and v < old:
                     continue
 
@@ -139,13 +173,16 @@ def main():
                     "old": "" if old is None else fmt_num(old),
                     "new": fmt_num(v)
                 })
-            print(f"{st['name'] or uid}: OK ({len(new_rows)} variazioni)")
+                player_rows += 1
+            print(f"{st['name'] or uid}: OK ({player_rows} variazioni)")
         except Exception as e:
             st["last_error"] = str(e)
             print(f"{uid}: ERRORE - {e}")
 
         status[uid] = st
         time.sleep(2)
+
+    maps = fetch_map_rotation() or prev_maps
 
     if new_rows:
         file_exists = os.path.exists(CSV_FILE)
@@ -156,7 +193,7 @@ def main():
             writer.writerows(new_rows)
 
     with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump({"status": status, "changes": changes}, f, separators=(",", ":"))
+        json.dump({"status": status, "changes": changes, "maps": maps}, f, separators=(",", ":"))
 
 if __name__ == "__main__":
     main()
