@@ -574,10 +574,10 @@ function getSegmentStyle(hexColor) {
   return {
     borderColor: (ctx) => {
       if (!isPause(ctx)) return hexColor;
-      return hexColor.length === 7 ? hexColor + '38' : hexColor; // Colore sbiadito (22% opacità)
+      return hexColor.length === 7 ? hexColor + '78' : hexColor; // ~47% opacità: ben visibile ma tenue
     },
-    borderDash: (ctx) => (isPause(ctx) ? [4, 4] : undefined), // Linea tratteggiata
-    borderWidth: (ctx) => (isPause(ctx) ? 1.5 : 2.5) // Linea più sottile
+    borderDash: (ctx) => (isPause(ctx) ? [5, 3] : undefined), // Tratteggio più leggibile
+    borderWidth: (ctx) => (isPause(ctx) ? 1.8 : 2.5)
   };
 }
 
