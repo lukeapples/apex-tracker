@@ -574,9 +574,8 @@ function getSegmentStyle(hexColor) {
   return {
     borderColor: (ctx) => {
       if (!isPause(ctx)) return hexColor;
-      return hexColor.length === 7 ? hexColor + '78' : hexColor; // ~47% opacità: ben visibile ma tenue
+      return hexColor.length === 7 ? hexColor + '78' : hexColor; // Linea continua al ~47% di opacità
     },
-    borderDash: (ctx) => (isPause(ctx) ? [5, 3] : undefined), // Tratteggio più leggibile
     borderWidth: (ctx) => (isPause(ctx) ? 1.8 : 2.5)
   };
 }
