@@ -4,8 +4,10 @@ if ('serviceWorker' in navigator) {
 
 let D = { status: {}, changes: [], maps: null };
 const FALLBACK_TIPS = {
+  tiltMarathon: ["Oltre 20 partite e saldo in rosso: forse è il momento di staccare 10 minuti per resettare!"],
   lowRp: ["Prendi tu il Jumpmaster e scegli rotazioni più intelligenti!"],
   lowKills: ["Resta più vicino ai compagni e gioca dietro alle coperture!"],
+  limbo: ["Sessione ancora aperta: servono un paio di partite fatte bene per prendere il largo!"],
   good: ["Buon saldo RP oggi, continua a gestire bene le rotazioni!"],
   dominant: ["Stai dominando la lobby tra RP e kill, continua così!"],
   idle: ["Ancora 0 partite oggi: vediamo come va la prima della sessione!"]
@@ -20,45 +22,53 @@ const store = {get(k){try{return localStorage.getItem(k)}catch(e){return null}},
 
 function buildSquadTips(squadPlayers) {
   const box = $('squad-tips');
-  const activePlayers = squadPlayers.filter(item => {
-    const isOnline = item.p && (item.p.is_online || item.p.is_in_game);
-    return isOnline || item.matchesD === 0;
-  });
-
-  if (!activePlayers.length) {
+  if (!squadPlayers || !squadPlayers.length) {
     box.classList.add('hidden');
     box.innerHTML = '';
     return;
   }
 
   const usedIndices = {
+    tiltMarathon: new Set(),
     lowRp: new Set(),
     lowKills: new Set(),
+    limbo: new Set(),
     good: new Set(),
     dominant: new Set(),
     idle: new Set()
   };
 
-  const cards = activePlayers.map((item, idx) => {
+  const cards = squadPlayers.map((item, idx) => {
     const name = esc(item.p.name || item.uid);
+    const isOnline = item.p && (item.p.is_online || item.p.is_in_game);
     const hasHighKills = item.matchesD > 0 && item.kD >= item.matchesD * 0.75;
+    const isWarmupOrFlat = (item.matchesD <= 2 && item.rpD > -100 && item.rpD < 120) || (Math.abs(item.rpD) <= 45);
     let cat = 'good';
     let tag = 'Saldo positivo';
     let cls = 'tip-good';
 
     if (item.matchesD === 0) {
       cat = 'idle';
-      tag = (item.p && (item.p.is_online || item.p.is_in_game)) ? 'Pre-partita' : 'In attesa (Offline)';
+      tag = isOnline ? 'Pre-partita' : 'In attesa (Offline)';
       cls = '';
+    } else if (item.matchesD > 20 && item.rpD < 0) {
+      cat = 'tiltMarathon';
+      tag = `Maratona Tilt (${item.rpD} RP · ${item.matchesD} part.)`;
+      cls = 'tip-rp';
     } else if (item.rpD <= -100) {
       cat = 'lowRp';
       tag = `Allarme RP (${item.rpD})`;
       cls = 'tip-rp';
-    } else if (item.rpD < 0 && !hasHighKills) {
+    } else if (isWarmupOrFlat) {
+      cat = 'limbo';
+      const rpSign = item.rpD >= 0 ? '+' : '';
+      tag = `In bilico (${rpSign}${item.rpD} RP · ${item.matchesD} part.)`;
+      cls = '';
+    } else if (item.rpD < -45 && !hasHighKills) {
       cat = 'lowKills';
       tag = `Mira fredda (${item.kD} kill / ${item.matchesD} part.)`;
       cls = 'tip-kills';
-    } else if (item.rpD > 0 && hasHighKills) {
+    } else if (item.rpD >= 100 && hasHighKills) {
       cat = 'dominant';
       tag = `Dominio (+${item.rpD} RP · ${item.kD} kill)`;
       cls = 'tip-good';
