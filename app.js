@@ -746,6 +746,7 @@ function renderRecap() {
 
 function renderMatches() {
   const uid = $('player-matches').value;
+  const pStatus = D.status[uid] || {};
   const ev = D.changes.filter(c => c[1] === uid && c[3] !== null);
   const sessions = [];
 
@@ -757,14 +758,18 @@ function renderMatches() {
     const isLegendNow = c[2].startsWith('legend.');
 
     // 1. Due variazioni di rank_score separate da almeno 1 minuto sono sempre due partite distinte.
-    // 2. Se una partita ha già sia rank_score che leggenda, chiudiamo a 8 minuti (480s) per eventi extra.
-    // 3. Se manca ancora rank_score o manca ancora la leggenda, aspettiamo fino a 22 minuti (1320s),
-    //    ovvero la durata massima completa di una Ranked inclusi caricamento e premiazione finale.
-    let maxGap = 480;
+    // 2. Se manca ancora rank_score (es. prima arrivano kill/danni e poi gli RP),
+    //    aspettiamo fino a 22 minuti (1320s) per agganciare il risultato finale della stessa partita.
+    // 3. Se manca ancora la leggenda e arrivano tracker leggenda senza rank_score entro 10 minuti (600s),
+    //    li uniamo per assorbire i ritardi asincroni dei banner.
+    // 4. Altrimenti chiudiamo la finestra a 4 minuti (240s).
+    let maxGap = 240;
     if (hasRpInLast && isRpNow) {
       maxGap = 60;
-    } else if ((!hasRpInLast && isRpNow) || (!hasLegendInLast && isLegendNow)) {
+    } else if (!hasRpInLast && isRpNow) {
       maxGap = 1320;
+    } else if (!hasLegendInLast && isLegendNow) {
+      maxGap = 600;
     }
 
     if (last && (c[0] - last.ts) <= maxGap) {
@@ -775,7 +780,7 @@ function renderMatches() {
     }
   });
 
-  const list = sessions.reverse().slice(0, 35);
+  const list = sessions.reverse().slice(0, 80);
   if (!list.length) {
     $('matches-list').innerHTML = '<div class="mut">Nessuna partita rilevata ancora.</div>';
     return;
@@ -794,7 +799,7 @@ function renderMatches() {
 
   $('matches-list').innerHTML = dayGroups.map(grp => {
     const cardsHtml = grp.matches.map(s => {
-      let legend = null, rpDiff = null, wins = 0;
+      let legend = null, isGuessedLegend = false, rpDiff = null, wins = 0;
       let totalKills = 0, legendKills = 0, totalDmg = 0, legendDmg = 0;
 
       s.items.forEach(item => {
@@ -810,11 +815,19 @@ function renderMatches() {
         else if (k.endsWith('.wins') && diff > 0 && diff <= 5) wins = Math.max(wins, diff);
       });
 
+      // Fallback intelligente: se i tracker della leggenda non sono cambiati (es. partita a 0 kill
+      // o leggenda senza tracker attivi), usa selected_legend se la partita è avvenuta
+      // entro 35 minuti dall'ultimo rilevamento di stato del giocatore.
+      if (!legend && pStatus.selected_legend && pStatus.last_ok && Math.abs(pStatus.last_ok - s.ts) <= 2100) {
+        legend = pStatus.selected_legend;
+        isGuessedLegend = true;
+      }
+
       const kills = totalKills > 0 ? totalKills : legendKills;
       const dmg = totalDmg > 0 ? totalDmg : legendDmg;
 
       const legendHtml = legend
-        ? `<b>${esc(legend)} ${wins > 0 ? '\uD83C\uDFC6' : ''}</b>`
+        ? `<b>${esc(legend)}${isGuessedLegend ? ' <span class="mut" style="font-weight:400" title="Rilevata dalla leggenda attiva in lobby">(attiva)</span>' : ''} ${wins > 0 ? '\uD83C\uDFC6' : ''}</b>`
         : `<span class="mut" style="font-weight:600">Leggenda non disponibile</span> ${wins > 0 ? '\uD83C\uDFC6' : ''}`;
 
       const rpHtml = rpDiff !== null
