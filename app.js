@@ -397,7 +397,14 @@ async function loadData() {
     ]);
     const raw = await dataRes.json();
     if (tipsRes && tipsRes.ok) {
-      try { COACH_TIPS = await tipsRes.json(); } catch (e) {}
+      try {
+        COACH_TIPS = await tipsRes.json();
+        console.log('tips.json caricato con successo:', Object.keys(COACH_TIPS));
+      } catch (e) {
+        console.error('Errore JSON in tips.json:', e);
+      }
+    } else {
+      console.error('Impossibile caricare tips.json:', tipsRes ? tipsRes.status : 'errore di rete');
     }
     D.status = raw.status || {};
     D.changes = (raw.changes || []).filter(c => c[3] === null || Math.round(c[3] * 100) !== Math.round(c[4] * 100));
