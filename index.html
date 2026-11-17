@@ -53,6 +53,12 @@
     .prog-wrap{width:100%;max-width:220px}
     .prog-bar{height:6px;background:var(--card);border-radius:4px;overflow:hidden;margin-top:4px;border:1px solid var(--bd)}
     .prog-fill{height:100%;background:var(--acc);border-radius:4px}
+    .tips-wrap{margin-top:12px;padding-top:12px;border-top:1px solid var(--bd);display:flex;flex-direction:column;gap:8px}
+    .tip-box{background:var(--bg);border:1px solid var(--bd);border-left:3px solid var(--warn);border-radius:8px;padding:9px 11px;font-size:13px}
+    .tip-box.tip-rp{border-left-color:var(--down)}
+    .tip-box.tip-kills{border-left-color:var(--warn)}
+    .tip-box.tip-good{border-left-color:var(--up)}
+    .tip-head{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--mut);margin-bottom:2px;display:flex;justify-content:space-between}
     .hidden{display:none}
   </style>
 </head>
@@ -76,6 +82,7 @@
       <thead><tr><th>Giocatore</th><th>Grado</th><th>RP</th><th>RP Oggi</th><th>Kill</th><th>Partite</th></tr></thead>
       <tbody id="compare-table"></tbody>
     </table></div>
+    <div id="squad-tips" class="tips-wrap hidden"></div>
   </div>
   <div class="card">
     <h2>Andamento RP</h2>
@@ -146,6 +153,98 @@ const fmt = t => new Date(t * 1000).toLocaleString('it-IT', {day:'2-digit',month
 const fmtTime = t => new Date(t * 1000).toLocaleTimeString('it-IT', {hour:'2-digit',minute:'2-digit'});
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const store = {get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+
+const COACH_TIPS = {
+  lowRp: [
+    "Stai donando RP in beneficenza all'intera lobby. Prendi tu il Jumpmaster e atterra dove non ci sono già 6 squad.",
+    "Con questa emorragia di punti tra poco ti chiedono il documento per entrare in Bronzo. Rallenta e gioca le rotazioni!",
+    "Forse buttarsi in mezzo a quattro team con una P2020 scarica non era la mossa del secolo. Prova rotazioni più intelligenti.",
+    "Il tuo grafico RP sembra una pista nera da sci. Fatti passare il Jumpmaster e scegli un drop sicuro.",
+    "Stai finanziando la scalata al Master di tutta Europa. Respira, guarda la safe e non pushare ogni sparo che senti.",
+    "Consiglio tattico: l'obiettivo delle Ranked è guadagnare punti, non tornare in lobby in tempo record. Gioca di posizione!",
+    "Se continui a perdere RP così velocemente, l'API andrà in overflow negativo. Ruota prima verso la zona e scegli i fight.",
+    "Qualcuno gli tolga il tasto per staccarsi dal Jumpmaster: atterrate insieme e giocate la ring invece di fare gli eroi.",
+    "Meno hot-drop da suicidio, più cervello sulle rotazioni: i punti arrivano se resti vivo dopo i primi 3 minuti."
+  ],
+  lowKills: [
+    "Stai facendo più turismo panoramico che combattimenti. Resta incollato ai compagni e spara allo stesso bersaglio!",
+    "Le tue kill sono più rare di un Heirloom nei pacchetti gratis. Usa meglio le coperture invece di passeggiare in campo aperto.",
+    "Ottimo lavoro come esca umana, ora però prova anche ad atterrare qualcuno. Stai vicino al team e sfrutta gli headglitch!",
+    "I nemici non muoiono solo perché li guardi male: gioca dietro una copertura e segui il focus dei tuoi compagni.",
+    "Rapporto kill/partite da pacifista convinto. Non staccarti dalla squadra e non peekare senza copertura.",
+    "Stai collezionando assist morali e danni all'aria. Stringi le distanze con la squad e copri gli angoli giusti.",
+    "Ricorda che le armi servono a fare danni, non solo a pesare nello zaino. Gioca stretto coi tuoi e usa i ripari!",
+    "Se muori sempre per primo in mezzo alla strada, forse un muro o una roccia potrebbero esserti amici. Stai col team!",
+    "Più copertura, meno corse da centometrista verso tre nemici: resta a portata di scambio dei tuoi compagni."
+  ],
+  good: [
+    "Oggi stai carriando la lobby: ricordati di fare stretching alla schiena per tutto il peso che stai portando.",
+    "Numeri solidi! Continua così e forse stasera i tuoi compagni ti offrono almeno una batteria scudo.",
+    "Stai giocando talmente pulito che tra poco ti segnalano per aimbot. Non montarti la testa e chiudi la safe.",
+    "Finalmente qualcuno che si ricorda da quale lato del fucile escono i proiettili. Ottimo ritmo!",
+    "Se continui con questa media, oggi il grado superiore non te lo toglie nessuno. Occhio solo a non over-pushare!",
+    "Stai tenendo in piedi la baracca: continua a dettare i tempi e non farti trascinare nei fight inutili.",
+    "Oggi la mira è calda e le rotazioni girano. Approfittane prima che l'algoritmo decida di punirti.",
+    "Prestazione da manuale: pochi fronzoli, tanti danni e punti in cassaforte."
+  ],
+  idle: [
+    "Ancora 0 partite oggi: il riscaldamento in Poligono è finito, ora tocca andare a sudare in Ranked.",
+    "Pronto in lobby e lucidato il mirino? Ricordati: coperture, focus di squadra e niente atterraggi suicidi.",
+    "Oggi tabellone ancora immacolato. Fai tu il Jumpmaster alla prima così partite con il piede giusto!",
+    "Motori accesi in lobby: vediamo se oggi si scalano divisioni o si collezionano biglietti di sola andata per la lobby.",
+    "Prima partita della sessione: gioca stretto ai compagni e non regalare punti a freddo."
+  ]
+};
+
+function buildSquadTips(squadPlayers) {
+  const onlinePlayers = squadPlayers.filter(item => item.p && (item.p.is_online || item.p.is_in_game));
+  const box = $('squad-tips');
+  if (!onlinePlayers.length) {
+    box.classList.add('hidden');
+    box.innerHTML = '';
+    return;
+  }
+
+  const usedIndices = { lowRp: new Set(), lowKills: new Set(), good: new Set(), idle: new Set() };
+
+  const cards = onlinePlayers.map((item, idx) => {
+    const name = esc(item.p.name || item.uid);
+    let cat = 'good';
+    let tag = 'Coach Live';
+    let cls = 'tip-good';
+
+    if (item.rpD <= -100) {
+      cat = 'lowRp';
+      tag = `Allarme RP (${item.rpD})`;
+      cls = 'tip-rp';
+    } else if (item.matchesD > 0 && item.kD < item.matchesD * 0.6) {
+      cat = 'lowKills';
+      tag = `Mira fredda (${item.kD} kill / ${item.matchesD} part.)`;
+      cls = 'tip-kills';
+    } else if (item.matchesD === 0) {
+      cat = 'idle';
+      tag = 'Pre-partita';
+      cls = '';
+    }
+
+    const pool = COACH_TIPS[cat];
+    let pick = Math.floor(Math.random() * pool.length);
+    let tries = 0;
+    while (usedIndices[cat].has(pick) && tries < pool.length) {
+      pick = (pick + 1 + idx) % pool.length;
+      tries++;
+    }
+    usedIndices[cat].add(pick);
+
+    return `<div class="tip-box ${cls}">
+      <div class="tip-head"><span>&#x1F399;&#xFE0F; Per ${name}</span><span>${esc(tag)}</span></div>
+      <div>${esc(pool[pick])}</div>
+    </div>`;
+  }).join('');
+
+  box.innerHTML = cards;
+  box.classList.remove('hidden');
+}
 
 const STAT_MAP = {
   'rank_score': 'Punti Rango (RP)',
@@ -236,7 +335,6 @@ function getRankVisual(p) {
   return label;
 }
 
-// Restituisce chiave univoca YYYY-MM-DD ed etichetta leggibile considerando il reset alle 04:00
 function getGamingDayInfo(ts) {
   const shifted = new Date((ts - 4 * 3600) * 1000);
   const nowShifted = new Date(Date.now() - 4 * 3600 * 1000);
@@ -477,6 +575,8 @@ function renderCompare() {
     <td>${item.matchesD}</td>
   </tr>`).join('');
 
+  buildSquadTips(squadPlayers);
+
   const datasets = squadPlayers.map(item => ({
     label: item.p.name || item.uid,
     data: D.changes.filter(c => c[1] === item.uid && c[2] === 'rank_score').map(r => ({ x: r[0] * 1000, y: r[4] })),
@@ -516,7 +616,7 @@ function renderRecap() {
     <div class="prog-wrap">
       <div class="row" style="justify-content:space-between;font-size:11px">
         <span class="mut">Livello ${pObj.level || ''}</span>
-        <b>${pct}%</b>
+        <b>${pct}% al prossimo</b>
       </div>
       <div class="prog-bar"><div class="prog-fill" style="width:${Math.min(100, Math.max(0, pct))}%"></div></div>
     </div>` : ''}
@@ -594,7 +694,6 @@ function renderMatches() {
     return;
   }
 
-  // Raggruppa le partite per giornata (con reset alle 04:00)
   const dayGroups = [];
   list.forEach(s => {
     const dayInfo = getGamingDayInfo(s.ts);
