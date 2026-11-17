@@ -97,6 +97,7 @@
       <select id="player-recap"></select>
       <select id="period-recap">
         <option value="day">Oggi</option>
+        <option value="yesterday">Ieri</option>
         <option value="week">Questa settimana</option>
         <option value="month">Questo mese</option>
       </select>
@@ -510,9 +511,14 @@ function fillKeys() {
 function calcPeriodStats(uid, period) {
   const shifted = new Date(Date.now() - 4 * 3600 * 1000);
   let start;
+  let endCutoff = Infinity;
 
   if (period === 'day') {
     start = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate(), 4, 0, 0);
+  } else if (period === 'yesterday') {
+    start = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate() - 1, 4, 0, 0);
+    const todayStart = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate(), 4, 0, 0);
+    endCutoff = Math.floor(todayStart.getTime() / 1000);
   } else if (period === 'week') {
     const day = shifted.getDay() || 7;
     start = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate() - day + 1, 4, 0, 0);
@@ -523,7 +529,7 @@ function calcPeriodStats(uid, period) {
   const cutoff = Math.floor(start.getTime() / 1000);
   const agg = {};
 
-  D.changes.filter(c => c[1] === uid && c[0] >= cutoff && c[3] !== null).forEach(r => {
+  D.changes.filter(c => c[1] === uid && c[0] >= cutoff && c[0] < endCutoff && c[3] !== null).forEach(r => {
     const k = r[2];
     const diff = Math.round((r[4] - r[3]) * 100) / 100;
     if (!isValidDelta(k, diff)) return;
