@@ -44,6 +44,7 @@ function buildSquadTips(squadPlayers) {
     const isLowKills = item.matchesD > 0 && item.kD < item.matchesD * 0.6;
     const isDominantKills = item.matchesD > 0 && item.kD >= item.matchesD * 0.75;
     const isWarmupOrFlat = (item.matchesD <= 2 && item.rpD > -100 && item.rpD < 120) || (Math.abs(item.rpD) <= 45);
+    const isTiltMarathon = (item.matchesD >= 40 && item.rpD < 100) || (item.matchesD >= 20 && item.rpD < -100 && isLowKills);
     let cat = 'good';
     let tag = 'Saldo positivo';
     let cls = 'tip-good';
@@ -52,9 +53,10 @@ function buildSquadTips(squadPlayers) {
       cat = 'idle';
       tag = isOnline ? 'Pre-partita' : 'In attesa (Offline)';
       cls = 'tip-idle';
-    } else if (item.matchesD > 20 && item.rpD < 0) {
+    } else if (isTiltMarathon) {
       cat = 'tiltMarathon';
-      tag = `Maratona Tilt (${item.rpD} RP · ${item.matchesD} part.)`;
+      const rpSign = item.rpD >= 0 ? '+' : '';
+      tag = `Maratona Tilt (${rpSign}${item.rpD} RP · ${item.matchesD} part.)`;
       cls = 'tip-rp';
     } else if (item.rpD <= -100) {
       cat = 'lowRp';
