@@ -822,7 +822,7 @@ ev.forEach(c => {
       const dmg = totalDmg > 0 ? totalDmg : legendDmg;
 
       const legendHtml = legend
-        ? `<b>${esc(legend)}${isGuessedLegend ? ' <span class="mut" style="font-weight:400" title="Rilevata dalla leggenda attiva in lobby">(attiva)</span>' : ''} ${wins > 0 ? '\uD83C\uDFC6' : ''}</b>`
+        ? `<b${isGuessedLegend ? ' title="Leggenda attiva rilevata in lobby"' : ''}>${esc(legend)} ${wins > 0 ? '\uD83C\uDFC6' : ''}</b>`
         : `<span class="mut" style="font-weight:600">Leggenda non disponibile</span> ${wins > 0 ? '\uD83C\uDFC6' : ''}`;
 
       const rpHtml = rpDiff !== null
