@@ -6,46 +6,60 @@ let D = { status: {}, changes: [], maps: null };
 const FALLBACK_TIPS = {
   lowRp: ["Prendi tu il Jumpmaster e scegli rotazioni più intelligenti!"],
   lowKills: ["Resta più vicino ai compagni e gioca dietro alle coperture!"],
-  good: ["Ottimo ritmo oggi, continua così!"],
-  idle: ["Pronto in lobby: vediamo come va la prima partita!"]
+  good: ["Buon saldo RP oggi, continua a gestire bene le rotazioni!"],
+  dominant: ["Stai dominando la lobby tra RP e kill, continua così!"],
+  idle: ["Ancora 0 partite oggi: vediamo come va la prima della sessione!"]
 };
 let COACH_TIPS = FALLBACK_TIPS;
 
-const $ = id => document.getElementById(id);
-const fmt = t => new Date(t * 1000).toLocaleString('it-IT', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
-const fmtTime = t => new Date(t * 1000).toLocaleTimeString('it-IT', {hour:'2-digit',minute:'2-digit'});
-const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const store = {get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
-
 function buildSquadTips(squadPlayers) {
-  const onlinePlayers = squadPlayers.filter(item => item.p && (item.p.is_online || item.p.is_in_game));
   const box = $('squad-tips');
-  if (!onlinePlayers.length) {
+  const activePlayers = squadPlayers.filter(item => {
+    const isOnline = item.p && (item.p.is_online || item.p.is_in_game);
+    return isOnline || item.matchesD === 0;
+  });
+
+  if (!activePlayers.length) {
     box.classList.add('hidden');
     box.innerHTML = '';
     return;
   }
 
-  const usedIndices = { lowRp: new Set(), lowKills: new Set(), good: new Set(), idle: new Set() };
+  const usedIndices = {
+    lowRp: new Set(),
+    lowKills: new Set(),
+    good: new Set(),
+    dominant: new Set(),
+    idle: new Set()
+  };
 
-  const cards = onlinePlayers.map((item, idx) => {
+  const cards = activePlayers.map((item, idx) => {
     const name = esc(item.p.name || item.uid);
+    const hasHighKills = item.matchesD > 0 && item.kD >= item.matchesD * 0.75;
     let cat = 'good';
-    let tag = 'Coach Live';
+    let tag = 'Saldo positivo';
     let cls = 'tip-good';
 
-    if (item.rpD <= -100) {
+    if (item.matchesD === 0) {
+      cat = 'idle';
+      tag = (item.p && (item.p.is_online || item.p.is_in_game)) ? 'Pre-partita' : 'In attesa (Offline)';
+      cls = '';
+    } else if (item.rpD <= -100) {
       cat = 'lowRp';
       tag = `Allarme RP (${item.rpD})`;
       cls = 'tip-rp';
-    } else if (item.matchesD > 0 && item.kD < item.matchesD * 0.6) {
+    } else if (item.rpD < 0 && !hasHighKills) {
       cat = 'lowKills';
       tag = `Mira fredda (${item.kD} kill / ${item.matchesD} part.)`;
       cls = 'tip-kills';
-    } else if (item.matchesD === 0) {
-      cat = 'idle';
-      tag = 'Pre-partita';
-      cls = '';
+    } else if (item.rpD > 0 && hasHighKills) {
+      cat = 'dominant';
+      tag = `Dominio (+${item.rpD} RP · ${item.kD} kill)`;
+      cls = 'tip-good';
+    } else {
+      cat = 'good';
+      tag = item.rpD >= 0 ? `In positivo (+${item.rpD} RP)` : `Buone kill (${item.kD}/${item.matchesD})`;
+      cls = 'tip-good';
     }
 
     const pool = (COACH_TIPS[cat] && COACH_TIPS[cat].length) ? COACH_TIPS[cat] : FALLBACK_TIPS[cat];
