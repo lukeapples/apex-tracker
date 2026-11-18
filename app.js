@@ -703,12 +703,14 @@ function renderRecap() {
   const rankedMatches = agg['rank_score'] ? agg['rank_score'].count : 0;
   const kills = getKillsFromAgg(agg);
   const dmg = getDamageFromAgg(agg);
+  const playtime = formatDuration(calcPlaytimeMinutes(uid, p));
 
   $('recap-kpis').innerHTML = `
     <div class="kpi"><div class="kpi-title">Variazione RP</div><div class="kpi-val ${rp>=0?'up':'down'}">${rp>=0?'+':''}${rp}</div></div>
     <div class="kpi"><div class="kpi-title">Uccisioni</div><div class="kpi-val">${kills}</div></div>
     <div class="kpi"><div class="kpi-title">Danni Inflitti</div><div class="kpi-val">${dmg.toLocaleString('it-IT')}</div></div>
     <div class="kpi"><div class="kpi-title">Partite Ranked</div><div class="kpi-val">${rankedMatches}</div></div>
+    <div class="kpi"><div class="kpi-title">Tempo Stimato</div><div class="kpi-val">~${playtime}</div></div>
   `;
 
   const generalKeys = [];
@@ -748,35 +750,8 @@ function renderRecap() {
 function renderMatches() {
   const uid = $('player-matches').value;
   const pStatus = D.status[uid] || {};
-  const ev = D.changes.filter(c => c[1] === uid && c[3] !== null);
-  const sessions = [];
+  const list = buildPlayerSessions(uid).reverse().slice(0, 80);
 
-ev.forEach(c => {
-    const last = sessions[sessions.length - 1];
-    const hasRpInLast = last && last.items.some(i => i[2] === 'rank_score');
-    const isRpNow = c[2] === 'rank_score';
-
-    // 1. Due variazioni di rank_score separate da almeno 1 minuto sono sempre due partite distinte.
-    // 2. Se manca ancora rank_score (es. prima arrivano kill/danni e poi gli RP),
-    //    aspettiamo fino a 22 minuti (1320s) per agganciare il risultato finale della stessa partita.
-    // 3. Altrimenti manteniamo 8 minuti (480s), che copre esattamente il ciclo di polling dell'API
-    //    (es. 22:44 RP +9 e 22:52 tracker Ash) senza mai scavalcare la partita successiva.
-    let maxGap = 480;
-    if (hasRpInLast && isRpNow) {
-      maxGap = 60;
-    } else if (!hasRpInLast && isRpNow) {
-      maxGap = 1320;
-    }
-
-    if (last && (c[0] - last.ts) <= maxGap) {
-      last.items.push(c);
-      last.ts = c[0];
-    } else {
-      sessions.push({ ts: c[0], items: [c] });
-    }
-  });
-
-  const list = sessions.reverse().slice(0, 80);
   if (!list.length) {
     $('matches-list').innerHTML = '<div class="mut">Nessuna partita rilevata ancora.</div>';
     return;
@@ -787,62 +762,44 @@ ev.forEach(c => {
     const dayInfo = getGamingDayInfo(s.ts);
     let grp = dayGroups[dayGroups.length - 1];
     if (!grp || grp.key !== dayInfo.key) {
-      grp = { key: dayInfo.key, label: dayInfo.label, matches: [] };
+      grp = { key: dayInfo.key, label: dayInfo.label, matches: [], totalMin: 0 };
       dayGroups.push(grp);
     }
     grp.matches.push(s);
+    grp.totalMin += s.estMinutes;
   });
 
   $('matches-list').innerHTML = dayGroups.map(grp => {
     const cardsHtml = grp.matches.map(s => {
-      let legend = null, isGuessedLegend = false, rpDiff = null, wins = 0;
-      let totalKills = 0, legendKills = 0, totalDmg = 0, legendDmg = 0;
+      let legend = s.legend;
+      let isGuessedLegend = false;
 
-      s.items.forEach(item => {
-        const k = item[2], diff = Math.round((item[4] - item[3]) * 100) / 100;
-        if (!isValidDelta(k, diff)) return;
-
-        if (k.startsWith('legend.')) legend = k.split('.')[1];
-        if (k === 'rank_score') rpDiff = (rpDiff || 0) + diff;
-        else if (k === 'total.kills' || k === 'total.specialEvent_kills') totalKills += diff;
-        else if (k.endsWith('.kills') || k.endsWith('.specialEvent_kills')) legendKills += diff;
-        else if (k === 'total.damage' || k === 'total.specialEvent_damage') totalDmg += diff;
-        else if (k.endsWith('.damage') || k.endsWith('.specialEvent_damage')) legendDmg += diff;
-        else if (k.endsWith('.wins') && diff > 0 && diff <= 5) wins = Math.max(wins, diff);
-      });
-
-      // Fallback intelligente: se i tracker della leggenda non sono cambiati (es. partita a 0 kill
-      // o leggenda senza tracker attivi), usa selected_legend se la partita è avvenuta
-      // entro 35 minuti dall'ultimo rilevamento di stato del giocatore.
       if (!legend && pStatus.selected_legend && pStatus.last_ok && Math.abs(pStatus.last_ok - s.ts) <= 2100) {
         legend = pStatus.selected_legend;
         isGuessedLegend = true;
       }
 
-      const kills = totalKills > 0 ? totalKills : legendKills;
-      const dmg = totalDmg > 0 ? totalDmg : legendDmg;
-
       const legendHtml = legend
-        ? `<b${isGuessedLegend ? ' title="Leggenda attiva rilevata in lobby"' : ''}>${esc(legend)} ${wins > 0 ? '\uD83C\uDFC6' : ''}</b>`
-        : `<span class="mut" style="font-weight:600">Leggenda non disponibile</span> ${wins > 0 ? '\uD83C\uDFC6' : ''}`;
+        ? `<b${isGuessedLegend ? ' title="Leggenda attiva rilevata in lobby"' : ''}>${esc(legend)} ${s.wins > 0 ? '\uD83C\uDFC6' : ''}</b>`
+        : `<span class="mut" style="font-weight:600">Leggenda non disponibile</span> ${s.wins > 0 ? '\uD83C\uDFC6' : ''}`;
 
-      const rpHtml = rpDiff !== null
-        ? `<span class="badge ${rpDiff>=0?'up':'down'}">RP ${rpDiff>=0?'+':''}${rpDiff}</span>`
+      const rpHtml = s.rpDiff !== null
+        ? `<span class="badge ${s.rpDiff>=0?'up':'down'}">RP ${s.rpDiff>=0?'+':''}${s.rpDiff}</span>`
         : `<span class="badge mut">RP Non disponibili</span>`;
 
       return `<div class="match-card">
         <div>
           <div>${legendHtml}</div>
-          <div class="time-pill">&#x1F552; ${fmtTime(s.ts)}</div>
+          <div class="time-pill">&#x1F552; ${fmtTime(s.ts)} <span class="mut" style="font-weight:500;margin-left:3px">(~${s.estMinutes}m)</span></div>
         </div>
-        <div class="row">${rpHtml}<span>Kill: <b>${kills}</b></span><span>Danni: <b>${dmg}</b></span></div>
+        <div class="row">${rpHtml}<span>Kill: <b>${s.kills}</b></span><span>Danni: <b>${s.dmg}</b></span></div>
       </div>`;
     }).join('');
 
     return `
       <div class="day-header">
         <span>${esc(grp.label)}</span>
-        <span class="mut" style="text-transform:none;font-weight:500">${grp.matches.length} ${grp.matches.length === 1 ? 'partita' : 'partite'}</span>
+        <span class="mut" style="text-transform:none;font-weight:500">${grp.matches.length} ${grp.matches.length === 1 ? 'partita' : 'partite'} &middot; ~${formatDuration(grp.totalMin)}</span>
       </div>
       ${cardsHtml}
     `;
@@ -914,6 +871,114 @@ function renderOverview() {
     const c = d == null ? '' : (d > 0 ? 'up' : 'down');
     return `<tr><td>${fmt(e[0])}</td><td>${esc(labelKey(e[2]))}</td><td>${e[3]==null?'\u2014':e[3]}</td><td>${e[4]}</td><td class="${c}">${d==null?'':(d>0?'+':'')+Math.round(d*100)/100}</td></tr>`;
   }).join('');
+}
+
+function estimateMatchMinutes(curSession, prevSession, rpDiff, kills) {
+  // 1. Se c'è una partita precedente nella stessa sessione (distanza <= 25 minuti)
+  if (prevSession) {
+    const gapSec = curSession.ts - prevSession.ts;
+    if (gapSec > 0 && gapSec <= 1500) {
+      // Togliamo ~90 secondi di lobby, selezione leggenda e caricamento
+      const rawMin = Math.round((gapSec - 90) / 60);
+      return Math.min(20, Math.max(2, rawMin));
+    }
+  }
+
+  // 2. Fallback per la prima partita della sessione (o dopo una pausa > 25 min)
+  if (rpDiff !== null) {
+    if (rpDiff >= 150) return 19;
+    if (rpDiff >= 70) return 15;
+    if (rpDiff > 0) return 11;
+    if (rpDiff >= -20) return 7;
+    return 3;
+  }
+
+  // 3. Partita non Ranked (senza RP) dopo una pausa
+  if (kills >= 4) return 14;
+  if (kills >= 1) return 9;
+  return 6;
+}
+
+function formatDuration(totalMinutes) {
+  if (!totalMinutes || totalMinutes <= 0) return '0m';
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  if (h === 0) return `${m}m`;
+  return `${h}h ${String(m).padStart(2, '0')}m`;
+}
+
+function buildPlayerSessions(uid) {
+  const ev = D.changes.filter(c => c[1] === uid && c[3] !== null);
+  const sessions = [];
+
+  ev.forEach(c => {
+    const last = sessions[sessions.length - 1];
+    const hasRpInLast = last && last.items.some(i => i[2] === 'rank_score');
+    const isRpNow = c[2] === 'rank_score';
+
+    let maxGap = 480;
+    if (hasRpInLast && isRpNow) {
+      maxGap = 60;
+    } else if (!hasRpInLast && isRpNow) {
+      maxGap = 1320;
+    }
+
+    if (last && (c[0] - last.ts) <= maxGap) {
+      last.items.push(c);
+      last.ts = c[0];
+    } else {
+      sessions.push({ ts: c[0], items: [c] });
+    }
+  });
+
+  return sessions.map((s, idx) => {
+    let legend = null, rpDiff = null, wins = 0;
+    let totalKills = 0, legendKills = 0, totalDmg = 0, legendDmg = 0;
+
+    s.items.forEach(item => {
+      const k = item[2], diff = Math.round((item[4] - item[3]) * 100) / 100;
+      if (!isValidDelta(k, diff)) return;
+
+      if (k.startsWith('legend.')) legend = k.split('.')[1];
+      if (k === 'rank_score') rpDiff = (rpDiff || 0) + diff;
+      else if (k === 'total.kills' || k === 'total.specialEvent_kills') totalKills += diff;
+      else if (k.endsWith('.kills') || k.endsWith('.specialEvent_kills')) legendKills += diff;
+      else if (k === 'total.damage' || k.endsWith('total.specialEvent_damage')) totalDmg += diff;
+      else if (k.endsWith('.damage') || k.endsWith('.specialEvent_damage')) legendDmg += diff;
+      else if (k.endsWith('.wins') && diff > 0 && diff <= 5) wins = Math.max(wins, diff);
+    });
+
+    const kills = totalKills > 0 ? totalKills : legendKills;
+    const dmg = totalDmg > 0 ? totalDmg : legendDmg;
+    const prev = idx > 0 ? sessions[idx - 1] : null;
+    const estMinutes = estimateMatchMinutes(s, prev, rpDiff, kills);
+
+    return { ts: s.ts, legend, rpDiff, wins, kills, dmg, estMinutes };
+  });
+}
+
+function calcPlaytimeMinutes(uid, period) {
+  const shifted = new Date(Date.now() - 4 * 3600 * 1000);
+  let start;
+  let endCutoff = Infinity;
+
+  if (period === 'day') {
+    start = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate(), 4, 0, 0);
+  } else if (period === 'yesterday') {
+    start = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate() - 1, 4, 0, 0);
+    const todayStart = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate(), 4, 0, 0);
+    endCutoff = Math.floor(todayStart.getTime() / 1000);
+  } else if (period === 'week') {
+    const day = shifted.getDay() || 7;
+    start = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate() - day + 1, 4, 0, 0);
+  } else {
+    start = new Date(shifted.getFullYear(), shifted.getMonth(), 1, 4, 0, 0);
+  }
+
+  const cutoff = Math.floor(start.getTime() / 1000);
+  return buildPlayerSessions(uid)
+    .filter(s => s.ts >= cutoff && s.ts < endCutoff)
+    .reduce((acc, s) => acc + s.estMinutes, 0);
 }
 
 function renderAll() {
