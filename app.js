@@ -790,6 +790,17 @@ function renderRecap() {
     <div class="kpi"><div class="kpi-title">Tempo Stimato</div><div class="kpi-val">~${playtime}</div></div>
   `;
 
+  const ALLOWED_GENERAL = new Set([
+    'rank_score', 'level',
+    'total.kills', 'total.specialEvent_kills',
+    'total.damage', 'total.specialEvent_damage',
+    'total.wins', 'total.games_played',
+    'total.top_3', 'total.top_5',
+    'total.headshots', 'total.finishers',
+    'total.revives', 'total.respawns',
+    'total.assists', 'total.knockdowns'
+  ]);
+
   const generalKeys = [];
   const legendGroups = {};
 
@@ -798,7 +809,7 @@ function renderRecap() {
       const lName = k.split('.')[1];
       if (!legendGroups[lName]) legendGroups[lName] = [];
       legendGroups[lName].push(k);
-    } else {
+    } else if (ALLOWED_GENERAL.has(k)) {
       generalKeys.push(k);
     }
   });
