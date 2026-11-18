@@ -932,8 +932,8 @@ function buildPlayerSessions(uid) {
     } else if (!hasRpInLast && isRpNow) {
       maxGap = 1320;
     } else if (!hasLegendInLast && isLegendNow) {
-      // Assorbe ritardi dei banner leggenda fino a 9 minuti (es. 22:56 RP e 23:04 Conduit)
-      maxGap = 540;
+      // Assorbe ritardi asincroni dei banner leggenda fino a 18 minuti
+      maxGap = 1080;
     }
 
     if (last && (c[0] - last.ts) <= maxGap) {
