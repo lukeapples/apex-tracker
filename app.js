@@ -15,6 +15,27 @@ const FALLBACK_TIPS = {
 };
 let COACH_TIPS = FALLBACK_TIPS;
 
+const FALLBACK_STAT_MAP = {
+  'selected_legend': 'Leggenda Selezionata',
+  'rank_score': 'Punti Rango (RP)',
+  'level': 'Livello Account',
+  'kills': 'Uccisioni',
+  'damage': 'Danni Inflitti',
+  'wins': 'Vittorie'
+};
+let STAT_MAP = { ...FALLBACK_STAT_MAP };
+
+const ALLOWED_GENERAL = new Set([
+  'rank_score', 'level',
+  'total.kills', 'total.specialEvent_kills',
+  'total.damage', 'total.specialEvent_damage',
+  'total.wins', 'total.games_played',
+  'total.top_3', 'total.top_5',
+  'total.headshots', 'total.finishers',
+  'total.revives', 'total.respawns',
+  'total.assists', 'total.knockdowns'
+]);
+
 const $ = id => document.getElementById(id);
 const fmt = t => new Date(t * 1000).toLocaleString('it-IT', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
 const fmtTime = t => new Date(t * 1000).toLocaleTimeString('it-IT', {hour:'2-digit',minute:'2-digit'});
@@ -25,7 +46,7 @@ function evaluateDayCategory({ rpD, kD, matchesD, playtimeMin, isOnline }) {
   const isLowKills = matchesD > 0 && kD < matchesD * 0.6;
   const isDominantKills = matchesD > 0 && kD >= matchesD * 0.75;
   const isWarmupOrFlat = (matchesD <= 2 && rpD > -100 && rpD < 120) || (Math.abs(rpD) <= 45);
-  const isOvertime = playtimeMin >= 300; // Soglia 5 ore (300 minuti)
+  const isOvertime = playtimeMin >= 300;
   const isTiltMarathon =
     (matchesD >= 40 && rpD < 0) ||
     (matchesD >= 30 && rpD <= -50) ||
@@ -154,44 +175,6 @@ function buildSquadTips(squadPlayers) {
   box.innerHTML = cards;
   box.classList.remove('hidden');
 }
-
-const STAT_MAP = {
-  'selected_legend': 'Leggenda Selezionata',
-  'rank_score': 'Punti Rango (RP)',
-  'level': 'Livello Account',
-  'kills': 'Uccisioni',
-  'specialEvent_kills': 'Uccisioni Stagionali',
-  'damage': 'Danni Inflitti',
-  'specialEvent_damage': 'Danni Stagionali',
-  'wins': 'Vittorie',
-  'games_played': 'Partite Giocate',
-  'top_3': 'Top 3',
-  'top_5': 'Top 5',
-  'headshots': 'Colpi alla Testa',
-  'finishers': 'Esecuzioni',
-  'revives': 'Rianimazioni',
-  'respawns': 'Respawn',
-  'assists': 'Assist',
-  'knockdowns': 'Atterramenti',
-  'sniper_kills': 'Uccisioni Cecchino',
-  'care_package_kills': 'Uccisioni Armi Capsula',
-  'double_time_distance': 'Distanza Doppio Passo',
-  'smoke_grenade_enemies_hit': 'Nemici Colpiti Fumo',
-  'phase_walk_time': 'Tempo Fase',
-  'rifts_squadmates_phased': 'Alleati nel Portale',
-  'enemies_scanned': 'Nemici Scansionati',
-  'doc_drone_healing': 'Cure Drone D.O.C.',
-  'doc_drone_squadmates_revived': 'Rianimazioni Drone',
-  'tactical_shield_applied': 'Scudi Tattici Applicati',
-  'passive_savior_boosted_distance_covered': 'Distanza Passiva Salvatrice',
-  'teammates_lifted': 'Alleati Sollevati',
-  'ultimate_boosted_travel_distance': 'Distanza Palla Demolitrice',
-  'tactical_damage_blocked': 'Danni Bloccati Scudo',
-  'motherlode_captured': 'Nemici Intrappolati',
-  'squadmates_use_jumppad': 'Salti Trampolino',
-  'passive_health_regen': 'Salute Rigenerata',
-  'tactical_enemy_tethered': 'Nemici Intrappolati'
-};
 
 function shortStatLabel(k) {
   if (STAT_MAP[k]) return STAT_MAP[k];
@@ -452,9 +435,10 @@ document.querySelectorAll('.tab').forEach(btn => {
 
 async function loadData() {
   try {
-    const [dataRes, tipsRes] = await Promise.all([
+    const [dataRes, tipsRes, transRes] = await Promise.all([
       fetch('data.json?t=' + Date.now()),
-      fetch('tips.json?t=' + Date.now()).catch(() => null)
+      fetch('tips.json?t=' + Date.now()).catch(() => null),
+      fetch('translations.json?t=' + Date.now()).catch(() => null)
     ]);
     const raw = await dataRes.json();
     if (tipsRes && tipsRes.ok) {
@@ -462,6 +446,14 @@ async function loadData() {
         COACH_TIPS = await tipsRes.json();
       } catch (e) {
         console.error('Errore JSON in tips.json:', e);
+      }
+    }
+    if (transRes && transRes.ok) {
+      try {
+        const customTrans = await transRes.json();
+        STAT_MAP = { ...FALLBACK_STAT_MAP, ...customTrans };
+      } catch (e) {
+        console.error('Errore JSON in translations.json:', e);
       }
     }
     D.status = raw.status || {};
@@ -542,7 +534,7 @@ function fillKeys() {
       const leg = k.split('.')[1];
       if (!legendGroups[leg]) legendGroups[leg] = [];
       legendGroups[leg].push(k);
-    } else {
+    } else if (ALLOWED_GENERAL.has(k)) {
       generalKeys.push(k);
     }
   });
@@ -565,8 +557,9 @@ function fillKeys() {
     $('key').appendChild(grp);
   });
 
+  const validKeys = [...generalKeys, ...Object.values(legendGroups).flat()];
   const sk = prev || store.get('apex_key');
-  $('key').value = keys.includes(sk) ? sk : (keys.includes('rank_score') ? 'rank_score' : (keys[0] || ''));
+  $('key').value = validKeys.includes(sk) ? sk : (validKeys.includes('rank_score') ? 'rank_score' : (validKeys[0] || ''));
 }
 
 function calcPeriodStats(uid, period) {
@@ -790,17 +783,6 @@ function renderRecap() {
     <div class="kpi"><div class="kpi-title">Tempo Stimato</div><div class="kpi-val">~${playtime}</div></div>
   `;
 
-  const ALLOWED_GENERAL = new Set([
-    'rank_score', 'level',
-    'total.kills', 'total.specialEvent_kills',
-    'total.damage', 'total.specialEvent_damage',
-    'total.wins', 'total.games_played',
-    'total.top_3', 'total.top_5',
-    'total.headshots', 'total.finishers',
-    'total.revives', 'total.respawns',
-    'total.assists', 'total.knockdowns'
-  ]);
-
   const generalKeys = [];
   const legendGroups = {};
 
@@ -862,7 +844,6 @@ function renderMatches() {
       let legend = s.legend;
       let isGuessedLegend = false;
 
-      // Fallback per partite passate prima dell'attivazione dello storico selected_legend
       if (!legend && pStatus.selected_legend && pStatus.last_ok && Math.abs(pStatus.last_ok - s.ts) <= 5400) {
         const hasOtherAfter = list.some(other => other.ts > s.ts && other.legend && other.legend !== pStatus.selected_legend);
         if (!hasOtherAfter) {
@@ -1057,7 +1038,6 @@ function buildPlayerSessions(uid) {
       else if (k.endsWith('.wins') && diff > 0 && diff <= 5) wins = Math.max(wins, diff);
     });
 
-    // Se nessun tracker leggenda è aumentato (es. 0 kill), usa la leggenda attiva in quel momento dallo storico
     if (!legend && legendTimeline.length) {
       let activeLeg = null;
       for (let i = 0; i < legendTimeline.length; i++) {
