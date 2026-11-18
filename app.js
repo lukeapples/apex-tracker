@@ -115,26 +115,18 @@ function calcPlayerHistoricalBadges(uid) {
   const todayKey = getGamingDayInfo(Math.floor(Date.now() / 1000)).key;
   const daysMap = {};
 
-  D.changes.filter(c => c[1] === uid && c[3] !== null && c[2] !== 'selected_legend').forEach(r => {
-    const dayKey = getGamingDayInfo(r[0]).key;
-    if (dayKey === todayKey) return;
-
-    const k = r[2];
-    const diff = Math.round((r[4] - r[3]) * 100) / 100;
-    if (!isValidDelta(k, diff)) return;
-
-    if (!daysMap[dayKey]) daysMap[dayKey] = { rpD: 0, kD: 0, matchesD: 0, playtimeMin: 0 };
-    if (k === 'rank_score') {
-      daysMap[dayKey].rpD = Math.round((daysMap[dayKey].rpD + diff) * 100) / 100;
-      daysMap[dayKey].matchesD += 1;
-    } else if (k === 'total.kills' || k === 'total.specialEvent_kills') {
-      daysMap[dayKey].kD += diff;
-    }
-  });
-
   buildPlayerSessions(uid).forEach(s => {
     const dayKey = getGamingDayInfo(s.ts).key;
-    if (daysMap[dayKey]) daysMap[dayKey].playtimeMin += s.estMinutes;
+    if (dayKey === todayKey) return;
+
+    if (!daysMap[dayKey]) daysMap[dayKey] = { rpD: 0, kD: 0, matchesD: 0, playtimeMin: 0 };
+    daysMap[dayKey].playtimeMin += s.estMinutes;
+
+    if (s.rpDiff !== null) {
+      daysMap[dayKey].rpD = Math.round((daysMap[dayKey].rpD + s.rpDiff) * 100) / 100;
+      daysMap[dayKey].matchesD += 1;
+      daysMap[dayKey].kD += s.kills;
+    }
   });
 
   const counts = { dominant: 0, good: 0, limbo: 0, lowRp: 0, tiltMarathon: 0, overtime: 0 };
@@ -600,6 +592,18 @@ function calcPeriodStats(uid, period) {
   return agg;
 }
 
+function calcRankedCombatStats(uid, period) {
+  const { cutoff, endCutoff } = getPeriodBounds(period);
+  const rankedSessions = buildPlayerSessions(uid)
+    .filter(s => s.ts >= cutoff && s.ts < endCutoff && s.rpDiff !== null);
+
+  return {
+    kills: rankedSessions.reduce((acc, s) => acc + s.kills, 0),
+    dmg: rankedSessions.reduce((acc, s) => acc + s.dmg, 0),
+    matches: rankedSessions.length
+  };
+}
+
 function calcLegendBreakdown(uid, period) {
   const { cutoff, endCutoff } = getPeriodBounds(period);
   const sessions = buildPlayerSessions(uid).filter(s => s.ts >= cutoff && s.ts < endCutoff);
@@ -630,18 +634,6 @@ function calcLegendBreakdown(uid, period) {
   return byLegend;
 }
 
-function getKillsFromAgg(agg) {
-  if (agg['total.kills']) return agg['total.kills'].delta;
-  if (agg['total.specialEvent_kills']) return agg['total.specialEvent_kills'].delta;
-  return Object.keys(agg).filter(k => k.endsWith('.kills')).reduce((a, b) => a + agg[b].delta, 0);
-}
-
-function getDamageFromAgg(agg) {
-  if (agg['total.damage']) return agg['total.damage'].delta;
-  if (agg['total.specialEvent_damage']) return agg['total.specialEvent_damage'].delta;
-  return Object.keys(agg).filter(k => k.endsWith('.damage')).reduce((a, b) => a + agg[b].delta, 0);
-}
-
 function getSegmentStyle(hexColor) {
   const isPause = (ctx) => {
     const diff = Math.abs(ctx.p1.parsed.x - ctx.p0.parsed.x);
@@ -668,8 +660,9 @@ function renderCompare() {
     const rpRows = D.changes.filter(c => c[1] === u && c[2] === 'rank_score');
     const curRp = rpRows.length ? rpRows[rpRows.length - 1][4] : -1;
     const dAgg = calcPeriodStats(u, 'day');
+    const rankedCombat = calcRankedCombatStats(u, 'day');
     const rpD = dAgg['rank_score'] ? dAgg['rank_score'].delta : 0;
-    const kD = getKillsFromAgg(dAgg);
+    const kD = rankedCombat.kills;
     const matchesD = dAgg['rank_score'] ? dAgg['rank_score'].count : 0;
     const playtimeD = calcPlaytimeMinutes(u, 'day');
     return { uid: u, p, curRp, rpD, kD, matchesD, playtimeD, color: colors[origIdx % colors.length] };
@@ -757,6 +750,7 @@ function renderRecap() {
   const pObj = D.status[uid] || {};
   const p = $('period-recap').value;
   const agg = calcPeriodStats(uid, p);
+  const rankedCombat = calcRankedCombatStats(uid, p);
   const legStats = calcLegendBreakdown(uid, p);
 
   const pct = pObj.next_level_pct != null ? Number(pObj.next_level_pct) : null;
@@ -806,14 +800,14 @@ function renderRecap() {
 
   const rp = agg['rank_score'] ? agg['rank_score'].delta : 0;
   const rankedMatches = agg['rank_score'] ? agg['rank_score'].count : 0;
-  const kills = getKillsFromAgg(agg);
-  const dmg = getDamageFromAgg(agg);
+  const kills = rankedCombat.kills;
+  const dmg = rankedCombat.dmg;
   const playtime = formatDuration(calcPlaytimeMinutes(uid, p));
 
   $('recap-kpis').innerHTML = `
     <div class="kpi"><div class="kpi-title">Variazione RP</div><div class="kpi-val ${rp>=0?'up':'down'}">${rp>=0?'+':''}${rp}</div></div>
-    <div class="kpi"><div class="kpi-title">Uccisioni</div><div class="kpi-val">${kills}</div></div>
-    <div class="kpi"><div class="kpi-title">Danni Inflitti</div><div class="kpi-val">${dmg.toLocaleString('it-IT')}</div></div>
+    <div class="kpi"><div class="kpi-title">Uccisioni Ranked</div><div class="kpi-val">${kills}</div></div>
+    <div class="kpi"><div class="kpi-title">Danni Ranked</div><div class="kpi-val">${dmg.toLocaleString('it-IT')}</div></div>
     <div class="kpi"><div class="kpi-title">Partite Ranked</div><div class="kpi-val">${rankedMatches}</div></div>
     <div class="kpi"><div class="kpi-title">Tempo Stimato</div><div class="kpi-val">~${playtime}</div></div>
   `;
@@ -831,7 +825,6 @@ function renderRecap() {
     }
   });
 
-  // Includi anche eventuali leggende giocate nel periodo senza tracker specifici avanzati
   Object.keys(legStats).forEach(lName => {
     if (!legendGroups[lName]) legendGroups[lName] = [];
   });
