@@ -84,13 +84,22 @@ def main():
                 ts = int(r["ts"])
                 uid = r["uid"]
                 key = r["key"]
-                old = float(r["old"]) if r["old"] != "" else None
-                new = float(r["new"])
-                if old is not None and round(old, 2) == round(new, 2):
+                if key == "selected_legend":
+                    old = r["old"] if r["old"] != "" else None
+                    new = r["new"]
+                    if old is not None and old == new:
+                        latest[f"{uid}|{key}"] = new
+                        continue
+                    changes.append([ts, uid, key, old, new])
                     latest[f"{uid}|{key}"] = new
-                    continue
-                changes.append([ts, uid, key, old, new])
-                latest[f"{uid}|{key}"] = new
+                else:
+                    old = float(r["old"]) if r["old"] != "" else None
+                    new = float(r["new"])
+                    if old is not None and round(old, 2) == round(new, 2):
+                        latest[f"{uid}|{key}"] = new
+                        continue
+                    changes.append([ts, uid, key, old, new])
+                    latest[f"{uid}|{key}"] = new
 
     status = {}
     prev_maps = None
@@ -113,6 +122,7 @@ def main():
             "last_ok": None, "last_error": None
         })
         st["platform"] = plat
+        prev_status_legend = st.get("selected_legend")
 
         try:
             id_param = "uid" if uid.isdigit() else "player"
@@ -146,14 +156,35 @@ def main():
             st["is_in_game"] = bool(rt.get("isInGame"))
             st["lobby_state"] = rt.get("lobbyState")
             st["state_text"] = rt.get("currentStateAsText")
-            st["selected_legend"] = rt.get("selectedLegend")
+            new_legend = rt.get("selectedLegend")
+            st["selected_legend"] = new_legend
 
             now = int(time.time())
             st["last_ok"] = now
             st["last_error"] = None
 
-            metrics = get_metrics(data)
             player_rows = 0
+
+            # Registra nello storico ogni cambio di leggenda attiva
+            if isinstance(new_legend, str) and new_legend.strip():
+                new_legend = new_legend.strip()
+                leg_ident = f"{uid}|selected_legend"
+                has_leg = leg_ident in latest
+                old_leg = latest[leg_ident] if has_leg else prev_status_legend
+
+                if not has_leg or old_leg != new_legend:
+                    latest[leg_ident] = new_legend
+                    changes.append([now, uid, "selected_legend", old_leg, new_legend])
+                    new_rows.append({
+                        "ts": now,
+                        "uid": uid,
+                        "key": "selected_legend",
+                        "old": "" if not old_leg else old_leg,
+                        "new": new_legend
+                    })
+                    player_rows += 1
+
+            metrics = get_metrics(data)
             for k, v in metrics.items():
                 ident = f"{uid}|{k}"
                 has = ident in latest
