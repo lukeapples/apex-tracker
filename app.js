@@ -998,19 +998,27 @@ function buildPlayerSessions(uid) {
     const hasRpInLast = last && last.items.some(i => i[2] === 'rank_score');
     const hasLegendInLast = last && last.items.some(i => i[2].startsWith('legend.'));
     const isRpNow = c[2] === 'rank_score';
+    const isLegendOrTrackerNow = c[2].startsWith('legend.') || c[2].startsWith('total.');
 
     let maxGap = 480;
     if (hasRpInLast && isRpNow) {
-      maxGap = 60;
+      // Due variazioni di RP sono la stessa partita SOLO se arrivano nello stesso identico batch (<= 10s)
+      maxGap = 10;
     } else if (!hasRpInLast && isRpNow) {
+      // Se prima sono arrivati kill/danni e poi gli RP, li uniamo fino a 22 minuti
       maxGap = 1320;
-    } else if (hasRpInLast && !hasLegendInLast && !isRpNow) {
+    } else if (hasRpInLast && !hasLegendInLast && isLegendOrTrackerNow) {
+      // Assorbe solo tracker leggenda/totali arrivati in ritardo dopo rank_score (non level!)
       maxGap = 1080;
     }
 
     if (last && (c[0] - last.ts) <= maxGap) {
       last.items.push(c);
-      last.ts = c[0];
+      // Aggiorna il timestamp della sessione solo se NON stiamo attaccando un tracker ritardatario
+      // a una partita che aveva già ricevuto il suo rank_score finale
+      if (!(hasRpInLast && !isRpNow && (c[0] - last.ts) > 60)) {
+        last.ts = c[0];
+      }
     } else {
       sessions.push({ ts: c[0], items: [c] });
     }
