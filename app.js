@@ -873,30 +873,38 @@ function renderOverview() {
   }).join('');
 }
 
+function estimateMinByOutcome(rpDiff, kills) {
+  if (rpDiff !== null) {
+    if (rpDiff >= 250) return 22;
+    if (rpDiff >= 140) return 20;
+    if (rpDiff >= 60) return 17;
+    if (rpDiff > 0) return 14;
+    if (rpDiff >= -15) return 13;
+    if (rpDiff >= -35) return 9;
+    return 4;
+  }
+  if (kills >= 3) return 15;
+  if (kills >= 1) return 10;
+  return 7;
+}
+
 function estimateMatchMinutes(curSession, prevSession, rpDiff, kills) {
-  // 1. Se c'è una partita precedente nella stessa sessione (distanza <= 25 minuti)
+  const outcomeEst = estimateMinByOutcome(rpDiff, kills);
+
+  // 1. Se c'è una partita precedente nella stessa sessione (distanza <= 28 minuti)
   if (prevSession) {
     const gapSec = curSession.ts - prevSession.ts;
-    if (gapSec > 0 && gapSec <= 1500) {
-      // Togliamo ~90 secondi di lobby, selezione leggenda e caricamento
-      const rawMin = Math.round((gapSec - 90) / 60);
-      return Math.min(20, Math.max(2, rawMin));
+    if (gapSec > 0 && gapSec <= 1680) {
+      const gapMin = Math.round(gapSec / 60);
+      // Se il gap è coerente (tra 3 e 23 min), usiamo il gap, ma senza scendere
+      // sotto il minimo fisiologico se hai fatto un piazzamento alto (es. +250 RP)
+      const minFloor = (rpDiff !== null && rpDiff >= 140) ? 18 : 3;
+      return Math.min(23, Math.max(minFloor, gapMin));
     }
   }
 
-  // 2. Fallback per la prima partita della sessione (o dopo una pausa > 25 min)
-  if (rpDiff !== null) {
-    if (rpDiff >= 150) return 19;
-    if (rpDiff >= 70) return 15;
-    if (rpDiff > 0) return 11;
-    if (rpDiff >= -20) return 7;
-    return 3;
-  }
-
-  // 3. Partita non Ranked (senza RP) dopo una pausa
-  if (kills >= 4) return 14;
-  if (kills >= 1) return 9;
-  return 6;
+  // 2. Prima partita della sessione o dopo una pausa > 28 min
+  return outcomeEst;
 }
 
 function formatDuration(totalMinutes) {
@@ -914,13 +922,18 @@ function buildPlayerSessions(uid) {
   ev.forEach(c => {
     const last = sessions[sessions.length - 1];
     const hasRpInLast = last && last.items.some(i => i[2] === 'rank_score');
+    const hasLegendInLast = last && last.items.some(i => i[2].startsWith('legend.'));
     const isRpNow = c[2] === 'rank_score';
+    const isLegendNow = c[2].startsWith('legend.');
 
     let maxGap = 480;
     if (hasRpInLast && isRpNow) {
       maxGap = 60;
     } else if (!hasRpInLast && isRpNow) {
       maxGap = 1320;
+    } else if (!hasLegendInLast && isLegendNow) {
+      // Assorbe ritardi dei banner leggenda fino a 9 minuti (es. 22:56 RP e 23:04 Conduit)
+      maxGap = 540;
     }
 
     if (last && (c[0] - last.ts) <= maxGap) {
