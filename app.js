@@ -931,8 +931,8 @@ function buildPlayerSessions(uid) {
       maxGap = 60;
     } else if (!hasRpInLast && isRpNow) {
       maxGap = 1320;
-    } else if (!hasLegendInLast && isLegendNow) {
-      // Assorbe ritardi asincroni dei banner leggenda fino a 18 minuti
+    } else if (hasRpInLast && !hasLegendInLast && !isRpNow) {
+      // Assorbe tutti i tracker (total.* e legend.*) arrivati in ritardo dopo rank_score fino a 18 minuti
       maxGap = 1080;
     }
 
