@@ -42,6 +42,27 @@ const fmtTime = t => new Date(t * 1000).toLocaleTimeString('it-IT', {hour:'2-dig
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const store = {get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 
+function getPeriodBounds(period) {
+  const shifted = new Date(Date.now() - 4 * 3600 * 1000);
+  let start;
+  let endCutoff = Infinity;
+
+  if (period === 'day') {
+    start = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate(), 4, 0, 0);
+  } else if (period === 'yesterday') {
+    start = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate() - 1, 4, 0, 0);
+    const todayStart = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate(), 4, 0, 0);
+    endCutoff = Math.floor(todayStart.getTime() / 1000);
+  } else if (period === 'week') {
+    const day = shifted.getDay() || 7;
+    start = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate() - day + 1, 4, 0, 0);
+  } else {
+    start = new Date(shifted.getFullYear(), shifted.getMonth(), 1, 4, 0, 0);
+  }
+
+  return { cutoff: Math.floor(start.getTime() / 1000), endCutoff };
+}
+
 function evaluateDayCategory({ rpD, kD, matchesD, playtimeMin, isOnline }) {
   const isLowKills = matchesD > 0 && kD < matchesD * 0.6;
   const isDominantKills = matchesD > 0 && kD >= matchesD * 0.75;
@@ -563,24 +584,7 @@ function fillKeys() {
 }
 
 function calcPeriodStats(uid, period) {
-  const shifted = new Date(Date.now() - 4 * 3600 * 1000);
-  let start;
-  let endCutoff = Infinity;
-
-  if (period === 'day') {
-    start = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate(), 4, 0, 0);
-  } else if (period === 'yesterday') {
-    start = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate() - 1, 4, 0, 0);
-    const todayStart = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate(), 4, 0, 0);
-    endCutoff = Math.floor(todayStart.getTime() / 1000);
-  } else if (period === 'week') {
-    const day = shifted.getDay() || 7;
-    start = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate() - day + 1, 4, 0, 0);
-  } else {
-    start = new Date(shifted.getFullYear(), shifted.getMonth(), 1, 4, 0, 0);
-  }
-
-  const cutoff = Math.floor(start.getTime() / 1000);
+  const { cutoff, endCutoff } = getPeriodBounds(period);
   const agg = {};
 
   D.changes.filter(c => c[1] === uid && c[0] >= cutoff && c[0] < endCutoff && c[3] !== null && c[2] !== 'selected_legend').forEach(r => {
@@ -594,6 +598,36 @@ function calcPeriodStats(uid, period) {
     agg[k].count += 1;
   });
   return agg;
+}
+
+function calcLegendBreakdown(uid, period) {
+  const { cutoff, endCutoff } = getPeriodBounds(period);
+  const sessions = buildPlayerSessions(uid).filter(s => s.ts >= cutoff && s.ts < endCutoff);
+
+  const byLegend = {};
+  let totalWithLegend = 0;
+
+  sessions.forEach(s => {
+    if (!s.legend) return;
+    if (!byLegend[s.legend]) {
+      byLegend[s.legend] = { matches: 0, ranked: 0, positive: 0 };
+    }
+    byLegend[s.legend].matches += 1;
+    totalWithLegend += 1;
+
+    if (s.rpDiff !== null) {
+      byLegend[s.legend].ranked += 1;
+      if (s.rpDiff > 0) byLegend[s.legend].positive += 1;
+    }
+  });
+
+  Object.keys(byLegend).forEach(leg => {
+    const item = byLegend[leg];
+    item.usagePct = totalWithLegend > 0 ? Math.round((item.matches / totalWithLegend) * 100) : 0;
+    item.successPct = item.ranked > 0 ? Math.round((item.positive / item.ranked) * 100) : null;
+  });
+
+  return byLegend;
 }
 
 function getKillsFromAgg(agg) {
@@ -718,71 +752,20 @@ function renderCompare() {
   });
 }
 
-function calcPeriodSuccessAndPicks(uid, period) {
-  const shifted = new Date(Date.now() - 4 * 3600 * 1000);
-  let start;
-  let endCutoff = Infinity;
-
-  if (period === 'day') {
-    start = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate(), 4, 0, 0);
-  } else if (period === 'yesterday') {
-    start = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate() - 1, 4, 0, 0);
-    const todayStart = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate(), 4, 0, 0);
-    endCutoff = Math.floor(todayStart.getTime() / 1000);
-  } else if (period === 'week') {
-    const day = shifted.getDay() || 7;
-    start = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate() - day + 1, 4, 0, 0);
-  } else {
-    start = new Date(shifted.getFullYear(), shifted.getMonth(), 1, 4, 0, 0);
-  }
-
-  const cutoff = Math.floor(start.getTime() / 1000);
-  const sessions = buildPlayerSessions(uid).filter(s => s.ts >= cutoff && s.ts < endCutoff);
-
-  const ranked = sessions.filter(s => s.rpDiff !== null);
-  const positive = ranked.filter(s => s.rpDiff > 0).length;
-  const successRate = ranked.length ? Math.round((positive / ranked.length) * 100) : null;
-
-  const legCounts = {};
-  let totalWithLegend = 0;
-  sessions.forEach(s => {
-    if (!s.legend) return;
-    legCounts[s.legend] = (legCounts[s.legend] || 0) + 1;
-    totalWithLegend += 1;
-  });
-
-  const legendPicks = Object.entries(legCounts)
-    .map(([name, count]) => ({
-      name,
-      count,
-      pct: Math.round((count / totalWithLegend) * 100)
-    }))
-    .sort((a, b) => b.count - a.count);
-
-  return { positive, rankedTotal: ranked.length, successRate, legendPicks };
-}
-
 function renderRecap() {
   const uid = $('player-recap').value;
   const pObj = D.status[uid] || {};
   const p = $('period-recap').value;
   const agg = calcPeriodStats(uid, p);
+  const legStats = calcLegendBreakdown(uid, p);
 
   const pct = pObj.next_level_pct != null ? Number(pObj.next_level_pct) : null;
   const leg = pObj.selected_legend ? esc(pObj.selected_legend) : '\u2014';
-
-  const extra = calcPeriodSuccessAndPicks(uid, p);
-  const picksHtml = extra.legendPicks.length
-    ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
-        ${extra.legendPicks.map(lp => `<span class="hist-badge">${esc(lp.name)}: <b>${lp.pct}%</b> <span class="mut">(${lp.count})</span></span>`).join('')}
-       </div>`
-    : '';
 
   $('recap-meta').innerHTML = `
     <div>
       <div style="font-size:13px;font-weight:600">${getRealtimeBadge(pObj)}</div>
       <div class="mut" style="margin-top:3px">Leggenda selezionata: <b style="color:var(--fg)">${leg}</b></div>
-      ${picksHtml}
     </div>
     ${pct !== null ? `
     <div class="prog-wrap">
@@ -827,12 +810,8 @@ function renderRecap() {
   const dmg = getDamageFromAgg(agg);
   const playtime = formatDuration(calcPlaytimeMinutes(uid, p));
 
-  const successVal = extra.successRate !== null ? `${extra.successRate}%` : '\u2014';
-  const successSub = extra.rankedTotal ? `<div class="mut" style="font-size:11px;margin-top:2px">${extra.positive}/${extra.rankedTotal} pos.</div>` : '';
-
   $('recap-kpis').innerHTML = `
     <div class="kpi"><div class="kpi-title">Variazione RP</div><div class="kpi-val ${rp>=0?'up':'down'}">${rp>=0?'+':''}${rp}</div></div>
-    <div class="kpi"><div class="kpi-title">Successo RP</div><div class="kpi-val ${extra.successRate>=50?'up':''}">${successVal}</div>${successSub}</div>
     <div class="kpi"><div class="kpi-title">Uccisioni</div><div class="kpi-val">${kills}</div></div>
     <div class="kpi"><div class="kpi-title">Danni Inflitti</div><div class="kpi-val">${dmg.toLocaleString('it-IT')}</div></div>
     <div class="kpi"><div class="kpi-title">Partite Ranked</div><div class="kpi-val">${rankedMatches}</div></div>
@@ -852,6 +831,11 @@ function renderRecap() {
     }
   });
 
+  // Includi anche eventuali leggende giocate nel periodo senza tracker specifici avanzati
+  Object.keys(legStats).forEach(lName => {
+    if (!legendGroups[lName]) legendGroups[lName] = [];
+  });
+
   let htmlRows = '';
 
   if (generalKeys.length) {
@@ -863,11 +847,25 @@ function renderRecap() {
   }
 
   Object.keys(legendGroups).sort().forEach(lName => {
-    htmlRows += `<tr class="group-row"><td colspan="4">Leggenda: ${esc(lName)}</td></tr>`;
-    legendGroups[lName].sort((a, b) => shortStatLabel(a).localeCompare(shortStatLabel(b))).forEach(k => {
-      const d = agg[k].delta;
-      htmlRows += `<tr><td>${esc(shortStatLabel(k))}</td><td>${agg[k].first}</td><td>${agg[k].last}</td><td class="${d>=0?'up':'down'}">${d>=0?'+':''}${d}</td></tr>`;
-    });
+    const st = legStats[lName];
+    let metaBadge = '';
+    if (st) {
+      const usageTxt = `Uso: <b style="color:var(--fg)">${st.usagePct}%</b> (${st.matches})`;
+      const succTxt = st.successPct !== null
+        ? ` &middot; Successo RP: <b style="color:${st.successPct >= 50 ? 'var(--ok)' : 'var(--bad)'}">${st.successPct}%</b> (${st.positive}/${st.ranked})`
+        : '';
+      metaBadge = `<span style="float:right;text-transform:none;font-weight:500;color:var(--mut);font-size:11px">${usageTxt}${succTxt}</span>`;
+    }
+
+    htmlRows += `<tr class="group-row"><td colspan="4">Leggenda: ${esc(lName)}${metaBadge}</td></tr>`;
+    if (legendGroups[lName].length) {
+      legendGroups[lName].sort((a, b) => shortStatLabel(a).localeCompare(shortStatLabel(b))).forEach(k => {
+        const d = agg[k].delta;
+        htmlRows += `<tr><td>${esc(shortStatLabel(k))}</td><td>${agg[k].first}</td><td>${agg[k].last}</td><td class="${d>=0?'up':'down'}">${d>=0?'+':''}${d}</td></tr>`;
+      });
+    } else {
+      htmlRows += `<tr><td colspan="4" class="mut">Nessun tracker specifico avanzato nel periodo</td></tr>`;
+    }
   });
 
   $('recap-table').innerHTML = htmlRows || '<tr><td colspan="4" class="mut">Nessun dato nel periodo.</td></tr>';
@@ -1116,24 +1114,7 @@ function buildPlayerSessions(uid) {
 }
 
 function calcPlaytimeMinutes(uid, period) {
-  const shifted = new Date(Date.now() - 4 * 3600 * 1000);
-  let start;
-  let endCutoff = Infinity;
-
-  if (period === 'day') {
-    start = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate(), 4, 0, 0);
-  } else if (period === 'yesterday') {
-    start = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate() - 1, 4, 0, 0);
-    const todayStart = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate(), 4, 0, 0);
-    endCutoff = Math.floor(todayStart.getTime() / 1000);
-  } else if (period === 'week') {
-    const day = shifted.getDay() || 7;
-    start = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate() - day + 1, 4, 0, 0);
-  } else {
-    start = new Date(shifted.getFullYear(), shifted.getMonth(), 1, 4, 0, 0);
-  }
-
-  const cutoff = Math.floor(start.getTime() / 1000);
+  const { cutoff, endCutoff } = getPeriodBounds(period);
   return buildPlayerSessions(uid)
     .filter(s => s.ts >= cutoff && s.ts < endCutoff)
     .reduce((acc, s) => acc + s.estMinutes, 0);
