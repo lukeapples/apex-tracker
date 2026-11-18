@@ -718,6 +718,50 @@ function renderCompare() {
   });
 }
 
+function calcPeriodSuccessAndPicks(uid, period) {
+  const shifted = new Date(Date.now() - 4 * 3600 * 1000);
+  let start;
+  let endCutoff = Infinity;
+
+  if (period === 'day') {
+    start = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate(), 4, 0, 0);
+  } else if (period === 'yesterday') {
+    start = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate() - 1, 4, 0, 0);
+    const todayStart = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate(), 4, 0, 0);
+    endCutoff = Math.floor(todayStart.getTime() / 1000);
+  } else if (period === 'week') {
+    const day = shifted.getDay() || 7;
+    start = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate() - day + 1, 4, 0, 0);
+  } else {
+    start = new Date(shifted.getFullYear(), shifted.getMonth(), 1, 4, 0, 0);
+  }
+
+  const cutoff = Math.floor(start.getTime() / 1000);
+  const sessions = buildPlayerSessions(uid).filter(s => s.ts >= cutoff && s.ts < endCutoff);
+
+  const ranked = sessions.filter(s => s.rpDiff !== null);
+  const positive = ranked.filter(s => s.rpDiff > 0).length;
+  const successRate = ranked.length ? Math.round((positive / ranked.length) * 100) : null;
+
+  const legCounts = {};
+  let totalWithLegend = 0;
+  sessions.forEach(s => {
+    if (!s.legend) return;
+    legCounts[s.legend] = (legCounts[s.legend] || 0) + 1;
+    totalWithLegend += 1;
+  });
+
+  const legendPicks = Object.entries(legCounts)
+    .map(([name, count]) => ({
+      name,
+      count,
+      pct: Math.round((count / totalWithLegend) * 100)
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  return { positive, rankedTotal: ranked.length, successRate, legendPicks };
+}
+
 function renderRecap() {
   const uid = $('player-recap').value;
   const pObj = D.status[uid] || {};
@@ -727,10 +771,18 @@ function renderRecap() {
   const pct = pObj.next_level_pct != null ? Number(pObj.next_level_pct) : null;
   const leg = pObj.selected_legend ? esc(pObj.selected_legend) : '\u2014';
 
+  const extra = calcPeriodSuccessAndPicks(uid, p);
+  const picksHtml = extra.legendPicks.length
+    ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
+        ${extra.legendPicks.map(lp => `<span class="hist-badge">${esc(lp.name)}: <b>${lp.pct}%</b> <span class="mut">(${lp.count})</span></span>`).join('')}
+       </div>`
+    : '';
+
   $('recap-meta').innerHTML = `
     <div>
       <div style="font-size:13px;font-weight:600">${getRealtimeBadge(pObj)}</div>
       <div class="mut" style="margin-top:3px">Leggenda selezionata: <b style="color:var(--fg)">${leg}</b></div>
+      ${picksHtml}
     </div>
     ${pct !== null ? `
     <div class="prog-wrap">
@@ -775,8 +827,12 @@ function renderRecap() {
   const dmg = getDamageFromAgg(agg);
   const playtime = formatDuration(calcPlaytimeMinutes(uid, p));
 
+  const successVal = extra.successRate !== null ? `${extra.successRate}%` : '\u2014';
+  const successSub = extra.rankedTotal ? `<div class="mut" style="font-size:11px;margin-top:2px">${extra.positive}/${extra.rankedTotal} pos.</div>` : '';
+
   $('recap-kpis').innerHTML = `
     <div class="kpi"><div class="kpi-title">Variazione RP</div><div class="kpi-val ${rp>=0?'up':'down'}">${rp>=0?'+':''}${rp}</div></div>
+    <div class="kpi"><div class="kpi-title">Successo RP</div><div class="kpi-val ${extra.successRate>=50?'up':''}">${successVal}</div>${successSub}</div>
     <div class="kpi"><div class="kpi-title">Uccisioni</div><div class="kpi-val">${kills}</div></div>
     <div class="kpi"><div class="kpi-title">Danni Inflitti</div><div class="kpi-val">${dmg.toLocaleString('it-IT')}</div></div>
     <div class="kpi"><div class="kpi-title">Partite Ranked</div><div class="kpi-val">${rankedMatches}</div></div>
