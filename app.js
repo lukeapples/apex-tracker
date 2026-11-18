@@ -4,6 +4,7 @@ if ('serviceWorker' in navigator) {
 
 let D = { status: {}, changes: [], maps: null };
 const FALLBACK_TIPS = {
+  overtime: ["Oltre 5 ore di gioco oggi: è il momento giusto per staccare, prendere aria e riposare gli occhi!"],
   tiltMarathon: ["Oltre 20 partite e saldo in rosso: forse è il momento di staccare 10 minuti per resettare!"],
   lowRp: ["Prendi tu il Jumpmaster e scegli rotazioni più intelligenti!"],
   lowKills: ["Resta più vicino ai compagni e gioca dietro alle coperture!"],
@@ -20,6 +21,94 @@ const fmtTime = t => new Date(t * 1000).toLocaleTimeString('it-IT', {hour:'2-dig
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const store = {get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 
+function evaluateDayCategory({ rpD, kD, matchesD, playtimeMin, isOnline }) {
+  const isLowKills = matchesD > 0 && kD < matchesD * 0.6;
+  const isDominantKills = matchesD > 0 && kD >= matchesD * 0.75;
+  const isWarmupOrFlat = (matchesD <= 2 && rpD > -100 && rpD < 120) || (Math.abs(rpD) <= 45);
+  const isOvertime = playtimeMin >= 300; // Soglia 5 ore (300 minuti)
+  const isTiltMarathon =
+    (matchesD >= 40 && rpD < 0) ||
+    (matchesD >= 30 && rpD <= -50) ||
+    (matchesD >= 20 && rpD < -100 && isLowKills);
+
+  if (matchesD === 0) {
+    return { cat: 'idle', tag: isOnline ? 'Pre-partita' : 'In attesa (Offline)', cls: 'tip-idle' };
+  }
+  if (isOvertime) {
+    const rpSign = rpD >= 0 ? '+' : '';
+    return {
+      cat: 'overtime',
+      tag: `⚠️ OLTRE 5 ORE (${formatDuration(playtimeMin)} · ${rpSign}${rpD} RP)`,
+      cls: 'tip-overtime'
+    };
+  }
+  if (isTiltMarathon) {
+    const rpSign = rpD >= 0 ? '+' : '';
+    return {
+      cat: 'tiltMarathon',
+      tag: `Maratona Tilt (${rpSign}${rpD} RP · ${matchesD} part.)`,
+      cls: 'tip-rp'
+    };
+  }
+  if (rpD <= -100) {
+    return { cat: 'lowRp', tag: `Allarme RP (${rpD})`, cls: 'tip-rp' };
+  }
+  if (rpD < -45 && isLowKills) {
+    return { cat: 'lowKills', tag: `Mira fredda (${kD} kill / ${matchesD} part.)`, cls: 'tip-kills' };
+  }
+  if (isWarmupOrFlat || rpD <= 45) {
+    const rpSign = rpD >= 0 ? '+' : '';
+    const tag = rpD < -45
+      ? `Kill ok (${kD}/${matchesD}), RP ${rpD}`
+      : `In bilico (${rpSign}${rpD} RP · ${matchesD} part.)`;
+    return { cat: 'limbo', tag, cls: 'tip-kills' };
+  }
+  if (rpD >= 100 && isDominantKills) {
+    return { cat: 'dominant', tag: `Dominio (+${rpD} RP · ${kD} kill)`, cls: 'tip-good' };
+  }
+  return { cat: 'good', tag: `In positivo (+${rpD} RP)`, cls: 'tip-good' };
+}
+
+function calcPlayerHistoricalBadges(uid) {
+  const todayKey = getGamingDayInfo(Math.floor(Date.now() / 1000)).key;
+  const daysMap = {};
+
+  // 1. Raggruppa RP e Kill per gaming day (escludendo oggi che è ancora in corso)
+  D.changes.filter(c => c[1] === uid && c[3] !== null).forEach(r => {
+    const dayKey = getGamingDayInfo(r[0]).key;
+    if (dayKey === todayKey) return;
+
+    const k = r[2];
+    const diff = Math.round((r[4] - r[3]) * 100) / 100;
+    if (!isValidDelta(k, diff)) return;
+
+    if (!daysMap[dayKey]) daysMap[dayKey] = { rpD: 0, kD: 0, matchesD: 0, playtimeMin: 0 };
+    if (k === 'rank_score') {
+      daysMap[dayKey].rpD = Math.round((daysMap[dayKey].rpD + diff) * 100) / 100;
+      daysMap[dayKey].matchesD += 1;
+    } else if (k === 'total.kills' || k === 'total.specialEvent_kills') {
+      daysMap[dayKey].kD += diff;
+    }
+  });
+
+  // 2. Aggiunge il tempo stimato per giornata
+  buildPlayerSessions(uid).forEach(s => {
+    const dayKey = getGamingDayInfo(s.ts).key;
+    if (daysMap[dayKey]) daysMap[dayKey].playtimeMin += s.estMinutes;
+  });
+
+  // 3. Conta le chiusure di giornata per categoria
+  const counts = { dominant: 0, good: 0, limbo: 0, lowRp: 0, tiltMarathon: 0, overtime: 0 };
+  Object.values(daysMap).forEach(d => {
+    if (d.matchesD === 0) return;
+    if (d.playtimeMin >= 300) counts.overtime += 1;
+    const res = evaluateDayCategory({ ...d, playtimeMin: 0, isOnline: false });
+    if (counts[res.cat] !== undefined) counts[res.cat] += 1;
+  });
+
+  return counts;
+}
+
 function buildSquadTips(squadPlayers) {
   const box = $('squad-tips');
   if (!squadPlayers || !squadPlayers.length) {
@@ -29,6 +118,7 @@ function buildSquadTips(squadPlayers) {
   }
 
   const usedIndices = {
+    overtime: new Set(),
     tiltMarathon: new Set(),
     lowRp: new Set(),
     lowKills: new Set(),
@@ -41,53 +131,13 @@ function buildSquadTips(squadPlayers) {
   const cards = squadPlayers.map((item, idx) => {
     const name = esc(item.p.name || item.uid);
     const isOnline = item.p && (item.p.is_online || item.p.is_in_game);
-    const isLowKills = item.matchesD > 0 && item.kD < item.matchesD * 0.6;
-    const isDominantKills = item.matchesD > 0 && item.kD >= item.matchesD * 0.75;
-    const isWarmupOrFlat = (item.matchesD <= 2 && item.rpD > -100 && item.rpD < 120) || (Math.abs(item.rpD) <= 45);
-const isTiltMarathon =
-      (item.matchesD >= 40 && item.rpD < 0) ||
-      (item.matchesD >= 30 && item.rpD <= -50) ||
-      (item.matchesD >= 20 && item.rpD < -100 && isLowKills);
-
-    let cat = 'limbo';
-    let tag = 'In bilico';
-    let cls = '';
-
-    if (item.matchesD === 0) {
-      cat = 'idle';
-      tag = isOnline ? 'Pre-partita' : 'In attesa (Offline)';
-      cls = 'tip-idle';
-    } else if (isTiltMarathon) {
-      cat = 'tiltMarathon';
-      const rpSign = item.rpD >= 0 ? '+' : '';
-      tag = `Maratona Tilt (${rpSign}${item.rpD} RP · ${item.matchesD} part.)`;
-      cls = 'tip-rp';
-    } else if (item.rpD <= -100) {
-      cat = 'lowRp';
-      tag = `Allarme RP (${item.rpD})`;
-      cls = 'tip-rp';
-    } else if (item.rpD < -45 && isLowKills) {
-      cat = 'lowKills';
-      tag = `Mira fredda (${item.kD} kill / ${item.matchesD} part.)`;
-      cls = 'tip-kills';
-    } else if (isWarmupOrFlat || item.rpD <= 45) {
-      // Copre sia il limbo classico (±45 RP / prime 2 partite) sia chi è tra -99 e -46 RP ma con buone kill
-      cat = 'limbo';
-      const rpSign = item.rpD >= 0 ? '+' : '';
-      tag = item.rpD < -45
-        ? `Kill ok (${item.kD}/${item.matchesD}), RP ${item.rpD}`
-        : `In bilico (${rpSign}${item.rpD} RP · ${item.matchesD} part.)`;
-      cls = 'tip-kills';
-    } else if (item.rpD >= 100 && isDominantKills) {
-      cat = 'dominant';
-      tag = `Dominio (+${item.rpD} RP · ${item.kD} kill)`;
-      cls = 'tip-good';
-    } else {
-      // Qui entra SOLO chi ha effettivamente rpD > 45!
-      cat = 'good';
-      tag = `In positivo (+${item.rpD} RP)`;
-      cls = 'tip-good';
-    }
+    const { cat, tag, cls } = evaluateDayCategory({
+      rpD: item.rpD,
+      kD: item.kD,
+      matchesD: item.matchesD,
+      playtimeMin: item.playtimeD || 0,
+      isOnline
+    });
 
     const pool = (COACH_TIPS[cat] && COACH_TIPS[cat].length) ? COACH_TIPS[cat] : FALLBACK_TIPS[cat];
     let pick = Math.floor(Math.random() * pool.length);
@@ -575,7 +625,7 @@ function getSegmentStyle(hexColor) {
   return {
     borderColor: (ctx) => {
       if (!isPause(ctx)) return hexColor;
-      return hexColor.length === 7 ? hexColor + '78' : hexColor; // Linea continua al ~47% di opacità
+      return hexColor.length === 7 ? hexColor + '78' : hexColor;
     },
     borderWidth: (ctx) => (isPause(ctx) ? 1.8 : 2.5)
   };
@@ -595,7 +645,8 @@ function renderCompare() {
     const rpD = dAgg['rank_score'] ? dAgg['rank_score'].delta : 0;
     const kD = getKillsFromAgg(dAgg);
     const matchesD = dAgg['rank_score'] ? dAgg['rank_score'].count : 0;
-    return { uid: u, p, curRp, rpD, kD, matchesD, color: colors[origIdx % colors.length] };
+    const playtimeD = calcPlaytimeMinutes(u, 'day');
+    return { uid: u, p, curRp, rpD, kD, matchesD, playtimeD, color: colors[origIdx % colors.length] };
   }).sort((a, b) => b.curRp - a.curRp);
 
   $('compare-table').innerHTML = squadPlayers.map(item => `<tr>
@@ -698,6 +749,33 @@ function renderRecap() {
       <div class="prog-bar"><div class="prog-fill" style="width:${Math.min(100, Math.max(0, pct))}%"></div></div>
     </div>` : ''}
   `;
+
+  const badgeBox = $('recap-badges');
+  if (badgeBox) {
+    const b = calcPlayerHistoricalBadges(uid);
+    const badgeItems = [
+      { icon: '👑', label: 'Dominio', val: b.dominant },
+      { icon: '📈', label: 'In positivo', val: b.good },
+      { icon: '⚖️', label: 'In bilico', val: b.limbo },
+      { icon: '📉', label: 'Allarme RP', val: b.lowRp },
+      { icon: '🌀', label: 'Maratona Tilt', val: b.tiltMarathon },
+      { icon: '⏳', label: 'Oltre 5h', val: b.overtime }
+    ].filter(x => x.val > 0);
+
+    if (badgeItems.length) {
+      badgeBox.innerHTML = `
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--mut);margin-bottom:6px">
+          Chiusure Giornata Storiche
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          ${badgeItems.map(x => `<span class="hist-badge">${x.icon} ${x.label}: <b>${x.val}</b></span>`).join('')}
+        </div>
+      `;
+      badgeBox.classList.remove('hidden');
+    } else {
+      badgeBox.classList.add('hidden');
+    }
+  }
 
   const rp = agg['rank_score'] ? agg['rank_score'].delta : 0;
   const rankedMatches = agg['rank_score'] ? agg['rank_score'].count : 0;
@@ -891,19 +969,15 @@ function estimateMinByOutcome(rpDiff, kills) {
 function estimateMatchMinutes(curSession, prevSession, rpDiff, kills) {
   const outcomeEst = estimateMinByOutcome(rpDiff, kills);
 
-  // 1. Se c'è una partita precedente nella stessa sessione (distanza <= 28 minuti)
   if (prevSession) {
     const gapSec = curSession.ts - prevSession.ts;
     if (gapSec > 0 && gapSec <= 1680) {
       const gapMin = Math.round(gapSec / 60);
-      // Se il gap è coerente (tra 3 e 23 min), usiamo il gap, ma senza scendere
-      // sotto il minimo fisiologico se hai fatto un piazzamento alto (es. +250 RP)
       const minFloor = (rpDiff !== null && rpDiff >= 140) ? 18 : 3;
       return Math.min(23, Math.max(minFloor, gapMin));
     }
   }
 
-  // 2. Prima partita della sessione o dopo una pausa > 28 min
   return outcomeEst;
 }
 
@@ -924,7 +998,6 @@ function buildPlayerSessions(uid) {
     const hasRpInLast = last && last.items.some(i => i[2] === 'rank_score');
     const hasLegendInLast = last && last.items.some(i => i[2].startsWith('legend.'));
     const isRpNow = c[2] === 'rank_score';
-    const isLegendNow = c[2].startsWith('legend.');
 
     let maxGap = 480;
     if (hasRpInLast && isRpNow) {
@@ -932,7 +1005,6 @@ function buildPlayerSessions(uid) {
     } else if (!hasRpInLast && isRpNow) {
       maxGap = 1320;
     } else if (hasRpInLast && !hasLegendInLast && !isRpNow) {
-      // Assorbe tutti i tracker (total.* e legend.*) arrivati in ritardo dopo rank_score fino a 18 minuti
       maxGap = 1080;
     }
 
