@@ -73,8 +73,7 @@ function calcPlayerHistoricalBadges(uid) {
   const todayKey = getGamingDayInfo(Math.floor(Date.now() / 1000)).key;
   const daysMap = {};
 
-  // 1. Raggruppa RP e Kill per gaming day (escludendo oggi che è ancora in corso)
-  D.changes.filter(c => c[1] === uid && c[3] !== null).forEach(r => {
+  D.changes.filter(c => c[1] === uid && c[3] !== null && c[2] !== 'selected_legend').forEach(r => {
     const dayKey = getGamingDayInfo(r[0]).key;
     if (dayKey === todayKey) return;
 
@@ -91,13 +90,11 @@ function calcPlayerHistoricalBadges(uid) {
     }
   });
 
-  // 2. Aggiunge il tempo stimato per giornata
   buildPlayerSessions(uid).forEach(s => {
     const dayKey = getGamingDayInfo(s.ts).key;
     if (daysMap[dayKey]) daysMap[dayKey].playtimeMin += s.estMinutes;
   });
 
-  // 3. Conta le chiusure di giornata per categoria
   const counts = { dominant: 0, good: 0, limbo: 0, lowRp: 0, tiltMarathon: 0, overtime: 0 };
   Object.values(daysMap).forEach(d => {
     if (d.matchesD === 0) return;
@@ -159,6 +156,7 @@ function buildSquadTips(squadPlayers) {
 }
 
 const STAT_MAP = {
+  'selected_legend': 'Leggenda Selezionata',
   'rank_score': 'Punti Rango (RP)',
   'level': 'Livello Account',
   'kills': 'Uccisioni',
@@ -219,6 +217,7 @@ function labelKey(k) {
 }
 
 function isValidDelta(key, diff) {
+  if (key === 'selected_legend' || typeof diff !== 'number' || Number.isNaN(diff)) return false;
   if (key !== 'rank_score' && diff <= 0) return false;
   if ((key.endsWith('.kills') || key.endsWith('.specialEvent_kills')) && diff > 35) return false;
   if ((key.endsWith('.damage') || key.endsWith('.specialEvent_damage')) && diff > 8000) return false;
@@ -413,7 +412,7 @@ function buildPointStyles(rows, baseColor) {
 
 let chart, compareChart;
 let activeTab = 'compare';
-let compareDays = 1; // Default: ultime 24h nella vista Squadra
+let compareDays = 1;
 let overviewDays = 7;
 
 function setCompareRange(days, btn) {
@@ -461,15 +460,15 @@ async function loadData() {
     if (tipsRes && tipsRes.ok) {
       try {
         COACH_TIPS = await tipsRes.json();
-        console.log('tips.json caricato con successo:', Object.keys(COACH_TIPS));
       } catch (e) {
         console.error('Errore JSON in tips.json:', e);
       }
-    } else {
-      console.error('Impossibile caricare tips.json:', tipsRes ? tipsRes.status : 'errore di rete');
     }
     D.status = raw.status || {};
-    D.changes = (raw.changes || []).filter(c => c[3] === null || Math.round(c[3] * 100) !== Math.round(c[4] * 100));
+    D.changes = (raw.changes || []).filter(c => {
+      if (c[2] === 'selected_legend') return typeof c[4] === 'string' && c[4].length > 0;
+      return c[3] === null || Math.round(c[3] * 100) !== Math.round(c[4] * 100);
+    });
     D.maps = raw.maps || null;
     renderMaps();
     initSelectors();
@@ -531,7 +530,7 @@ function initSelectors() {
 
 function fillKeys() {
   const uid = $('player').value;
-  const keys = [...new Set(D.changes.filter(c => c[1] === uid).map(c => c[2]))];
+  const keys = [...new Set(D.changes.filter(c => c[1] === uid && c[2] !== 'selected_legend').map(c => c[2]))];
   const prev = $('key').value;
   $('key').innerHTML = '';
 
@@ -591,7 +590,7 @@ function calcPeriodStats(uid, period) {
   const cutoff = Math.floor(start.getTime() / 1000);
   const agg = {};
 
-  D.changes.filter(c => c[1] === uid && c[0] >= cutoff && c[0] < endCutoff && c[3] !== null).forEach(r => {
+  D.changes.filter(c => c[1] === uid && c[0] >= cutoff && c[0] < endCutoff && c[3] !== null && c[2] !== 'selected_legend').forEach(r => {
     const k = r[2];
     const diff = Math.round((r[4] - r[3]) * 100) / 100;
     if (!isValidDelta(k, diff)) return;
@@ -619,7 +618,7 @@ function getDamageFromAgg(agg) {
 function getSegmentStyle(hexColor) {
   const isPause = (ctx) => {
     const diff = Math.abs(ctx.p1.parsed.x - ctx.p0.parsed.x);
-    return diff > 2700000; // 45 minuti in millisecondi
+    return diff > 2700000;
   };
 
   return {
@@ -852,9 +851,13 @@ function renderMatches() {
       let legend = s.legend;
       let isGuessedLegend = false;
 
-      if (!legend && pStatus.selected_legend && pStatus.last_ok && Math.abs(pStatus.last_ok - s.ts) <= 2100) {
-        legend = pStatus.selected_legend;
-        isGuessedLegend = true;
+      // Fallback per partite passate prima dell'attivazione dello storico selected_legend
+      if (!legend && pStatus.selected_legend && pStatus.last_ok && Math.abs(pStatus.last_ok - s.ts) <= 5400) {
+        const hasOtherAfter = list.some(other => other.ts > s.ts && other.legend && other.legend !== pStatus.selected_legend);
+        if (!hasOtherAfter) {
+          legend = pStatus.selected_legend;
+          isGuessedLegend = true;
+        }
       }
 
       const legendHtml = legend
@@ -945,6 +948,9 @@ function renderOverview() {
 
   const ev = D.changes.filter(c => c[1] === uid).slice(-50).reverse();
   $('events').innerHTML = ev.map(e => {
+    if (e[2] === 'selected_legend') {
+      return `<tr><td>${fmt(e[0])}</td><td>${esc(labelKey(e[2]))}</td><td>${e[3] ? esc(e[3]) : '\u2014'}</td><td><b>${esc(e[4])}</b></td><td class="mut">\u2014</td></tr>`;
+    }
     const d = e[3] == null ? null : e[4] - e[3];
     const c = d == null ? '' : (d > 0 ? 'up' : 'down');
     return `<tr><td>${fmt(e[0])}</td><td>${esc(labelKey(e[2]))}</td><td>${e[3]==null?'\u2014':e[3]}</td><td>${e[4]}</td><td class="${c}">${d==null?'':(d>0?'+':'')+Math.round(d*100)/100}</td></tr>`;
@@ -990,7 +996,11 @@ function formatDuration(totalMinutes) {
 }
 
 function buildPlayerSessions(uid) {
-  const ev = D.changes.filter(c => c[1] === uid && c[3] !== null);
+  const ev = D.changes.filter(c => c[1] === uid && c[3] !== null && c[2] !== 'selected_legend');
+  const legendTimeline = D.changes
+    .filter(c => c[1] === uid && c[2] === 'selected_legend' && typeof c[4] === 'string' && c[4].length > 0)
+    .sort((a, b) => a[0] - b[0]);
+
   const sessions = [];
 
   ev.forEach(c => {
@@ -1002,20 +1012,15 @@ function buildPlayerSessions(uid) {
 
     let maxGap = 480;
     if (hasRpInLast && isRpNow) {
-      // Due variazioni di RP sono la stessa partita SOLO se arrivano nello stesso identico batch (<= 10s)
       maxGap = 10;
     } else if (!hasRpInLast && isRpNow) {
-      // Se prima sono arrivati kill/danni e poi gli RP, li uniamo fino a 22 minuti
       maxGap = 1320;
     } else if (hasRpInLast && !hasLegendInLast && isLegendOrTrackerNow) {
-      // Assorbe solo tracker leggenda/totali arrivati in ritardo dopo rank_score (non level!)
-      maxGap = 1080;
+      maxGap = 540;
     }
 
     if (last && (c[0] - last.ts) <= maxGap) {
       last.items.push(c);
-      // Aggiorna il timestamp della sessione solo se NON stiamo attaccando un tracker ritardatario
-      // a una partita che aveva già ricevuto il suo rank_score finale
       if (!(hasRpInLast && !isRpNow && (c[0] - last.ts) > 60)) {
         last.ts = c[0];
       }
@@ -1040,6 +1045,19 @@ function buildPlayerSessions(uid) {
       else if (k.endsWith('.damage') || k.endsWith('.specialEvent_damage')) legendDmg += diff;
       else if (k.endsWith('.wins') && diff > 0 && diff <= 5) wins = Math.max(wins, diff);
     });
+
+    // Se nessun tracker leggenda è aumentato (es. 0 kill), usa la leggenda attiva in quel momento dallo storico
+    if (!legend && legendTimeline.length) {
+      let activeLeg = null;
+      for (let i = 0; i < legendTimeline.length; i++) {
+        if (legendTimeline[i][0] <= s.ts + 90) {
+          activeLeg = legendTimeline[i][4];
+        } else {
+          break;
+        }
+      }
+      if (activeLeg) legend = activeLeg;
+    }
 
     const kills = totalKills > 0 ? totalKills : legendKills;
     const dmg = totalDmg > 0 ? totalDmg : legendDmg;
