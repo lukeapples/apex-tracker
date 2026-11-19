@@ -1037,8 +1037,8 @@ function estimateMatchMinutes(curSession, prevSession, rpDiff, kills) {
     }
   }
 
-  if (rpDiff !== null && rpDiff < 0 && est > 17) {
-    est = Math.floor(est / 2);
+  if (rpDiff !== null && rpDiff < -10 && est > 16) {
+    est = Math.floor(est / 3);
   }
 
   return est;
