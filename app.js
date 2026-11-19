@@ -1026,18 +1026,22 @@ function estimateMinByOutcome(rpDiff, kills) {
 }
 
 function estimateMatchMinutes(curSession, prevSession, rpDiff, kills) {
-  const outcomeEst = estimateMinByOutcome(rpDiff, kills);
+  let est = estimateMinByOutcome(rpDiff, kills);
 
   if (prevSession) {
     const gapSec = curSession.ts - prevSession.ts;
     if (gapSec > 0 && gapSec <= 1680) {
       const gapMin = Math.round(gapSec / 60);
       const minFloor = (rpDiff !== null && rpDiff >= 140) ? 18 : 3;
-      return Math.min(23, Math.max(minFloor, gapMin));
+      est = Math.min(23, Math.max(minFloor, gapMin));
     }
   }
 
-  return outcomeEst;
+  if (rpDiff !== null && rpDiff < 0 && est > 17) {
+    est = Math.floor(est / 2);
+  }
+
+  return est;
 }
 
 function formatDuration(totalMinutes) {
