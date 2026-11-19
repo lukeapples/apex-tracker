@@ -1186,7 +1186,7 @@ function formatDuration(totalMinutes) {
 }
 
 function buildPlayerSessions(uid) {
-  const ev = D.changes.filter(c => c[1] === uid && c[3] !== null && c[2] !== 'selected_legend');
+  const rawEv = D.changes.filter(c => c[1] === uid && c[3] !== null && c[2] !== 'selected_legend');
   const legendTimeline = D.changes
     .filter(c => c[1] === uid && c[2] === 'selected_legend' && typeof c[4] === 'string' && c[4].length > 0)
     .sort((a, b) => a[0] - b[0]);
@@ -1200,15 +1200,32 @@ function buildPlayerSessions(uid) {
     return active;
   };
 
+  // Pre-filtro: individua i timestamp in cui viene sincronizzata per la prima volta una leggenda appena selezionata (senza RP)
   const seenLegends = new Set();
+  const initialSyncTs = new Set();
+
+  rawEv.forEach(c => {
+    const k = c[2];
+    if (k.startsWith('legend.')) {
+      const legName = k.split('.')[1];
+      if (!seenLegends.has(legName)) {
+        seenLegends.add(legName);
+        const recentSwitch = legendTimeline.some(lt => lt[0] <= c[0] && (c[0] - lt[0]) <= 180);
+        const hasRpAtSameTime = rawEv.some(other => other[2] === 'rank_score' && Math.abs(other[0] - c[0]) <= 15);
+        if (recentSwitch && !hasRpAtSameTime) {
+          initialSyncTs.add(c[0]);
+        }
+      }
+    }
+  });
+
+  const ev = rawEv.filter(c => !initialSyncTs.has(c[0]));
   const sessions = [];
 
   ev.forEach(c => {
     const k = c[2];
     const isLegendKey = k.startsWith('legend.');
     const legName = isLegendKey ? k.split('.')[1] : null;
-    const isFirstTimeLegend = isLegendKey && !seenLegends.has(legName);
-    if (isLegendKey) seenLegends.add(legName);
 
     const last = sessions[sessions.length - 1];
     const hasRpInLast = last && last.items.some(i => i[2] === 'rank_score');
@@ -1217,13 +1234,9 @@ function buildPlayerSessions(uid) {
     const isRpNow = k === 'rank_score';
     const isLegendOrTrackerNow = isLegendKey || k.startsWith('total.');
 
-    let recentLegendSwitch = false;
     let legendSwitchedBetween = false;
-    if (legendTimeline.length) {
-      recentLegendSwitch = legendTimeline.some(lt => lt[0] <= c[0] && (c[0] - lt[0]) <= 180);
-      if (last) {
-        legendSwitchedBetween = legendTimeline.some(lt => lt[0] > last.ts + 15 && lt[0] <= c[0]);
-      }
+    if (last && legendTimeline.length) {
+      legendSwitchedBetween = legendTimeline.some(lt => lt[0] > last.ts + 15 && lt[0] <= c[0]);
     }
 
     let maxGap = 480;
@@ -1239,8 +1252,6 @@ function buildPlayerSessions(uid) {
 
     if (last && !legendSwitchedBetween && sameLegend && (c[0] - last.ts) <= maxGap) {
       last.items.push(c);
-      if (isFirstTimeLegend) last.isFirstTimeLegend = true;
-      if (recentLegendSwitch) last.recentLegendSwitch = true;
       if (!(hasRpInLast && !isRpNow && (c[0] - last.ts) > 60)) {
         last.ts = c[0];
       }
@@ -1249,18 +1260,12 @@ function buildPlayerSessions(uid) {
         startTs: c[0],
         ts: c[0],
         items: [c],
-        hintLegend: legName || getActiveLegendAt(c[0]),
-        isFirstTimeLegend,
-        recentLegendSwitch
+        hintLegend: legName || getActiveLegendAt(c[0])
       });
     }
   });
 
-  const validSessions = sessions.filter(
-    s => !(s.isFirstTimeLegend && s.recentLegendSwitch && !s.items.some(i => i[2] === 'rank_score'))
-  );
-
-  return validSessions.map((s, idx) => {
+  return sessions.map((s, idx) => {
     let legend = null, rpDiff = null, wins = 0;
     let totalKills = 0, legendKills = 0, totalDmg = 0, legendDmg = 0;
 
@@ -1281,7 +1286,7 @@ function buildPlayerSessions(uid) {
 
     const kills = totalKills > 0 ? totalKills : legendKills;
     const dmg = totalDmg > 0 ? totalDmg : legendDmg;
-    const prev = idx > 0 ? validSessions[idx - 1] : null;
+    const prev = idx > 0 ? sessions[idx - 1] : null;
     const estMinutes = estimateMatchMinutes(s, prev, rpDiff, kills);
 
     return { ts: s.ts, legend, rpDiff, wins, kills, dmg, estMinutes };
