@@ -260,7 +260,7 @@ function buildSquadTips(squadPlayers) {
 
     if (isTiltMarathon) {
       const tiltMsg = pickUniqueTip('tiltMarathon', usedIndices, idx);
-      extraBlocks.push(`<div style="margin-top:9px;padding-top:8px;border-top:1px dashed rgba(255,255,255,0.12)">
+      extraBlocks.push(`<div style="margin-top:9px;padding-top:8px;border-top:1px dashed rgba(224,70,58,0.35)">
         <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--bad,#e0463a);margin-bottom:3px">
           <span>&#x1F300; Maratona Tilt</span>
           <span>${rpSign}${item.rpD} RP &middot; ${item.matchesD} part.</span>
@@ -271,7 +271,7 @@ function buildSquadTips(squadPlayers) {
 
     if (isOvertime) {
       const otMsg = pickUniqueTip('overtime', usedIndices, idx);
-      extraBlocks.push(`<div style="margin-top:9px;padding-top:8px;border-top:1px dashed rgba(255,255,255,0.12)">
+      extraBlocks.push(`<div style="margin-top:9px;padding-top:8px;border-top:1px dashed rgba(224,70,58,0.35)">
         <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;text-transform:uppercase;color:#f59e0b;margin-bottom:3px">
           <span>&#x26A0;&#xFE0F; Oltre 5 ore</span>
           <span>${esc(formatDuration(item.playtimeD || 0))}</span>
@@ -280,7 +280,11 @@ function buildSquadTips(squadPlayers) {
       </div>`);
     }
 
-    return `<div class="tip-box ${cls}">
+    const cardGradient = extraBlocks.length
+      ? ' style="background-image:linear-gradient(to top, rgba(224,70,58,0.14), transparent 65%)"'
+      : '';
+
+    return `<div class="tip-box ${cls}"${cardGradient}>
       <div class="tip-head"><span>&#x1F399;&#xFE0F; Per ${name}</span><span>${esc(tag)}</span></div>
       <div>${esc(msg)}</div>
       ${extraBlocks.join('')}
