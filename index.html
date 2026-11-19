@@ -106,8 +106,13 @@
       </div>
     </div>
     <div class="row" style="justify-content:space-between;margin-bottom:8px">
-      <label class="mut" style="display:flex;align-items:center;gap:6px;cursor:pointer">
-        <input type="checkbox" id="compare-relative" onchange="renderCompare()"> Confronta variazione (&plusmn;0 RP)
+      <label class="row mut" style="font-size:12px;cursor:pointer;gap:6px">
+        <input type="checkbox" id="compare-relative" onchange="renderCompare()">
+        Confronta variazione (±0 RP)
+      </label>
+      <label class="row mut" style="font-size:12px;cursor:pointer;gap:6px">
+        <input type="checkbox" id="compare-compact" onchange="renderCompare()">
+        Comprimi pause
       </label>
       <button class="refresh-btn" style="padding:3px 8px;font-size:11px" onclick="compareChart && compareChart.resetZoom()">Reset zoom</button>
     </div>
