@@ -63,34 +63,24 @@ function getPeriodBounds(period) {
   return { cutoff: Math.floor(start.getTime() / 1000), endCutoff };
 }
 
-function evaluateDayCategory({ rpD, kD, matchesD, playtimeMin, isOnline }) {
+function getDayExtraFlags({ rpD, kD, matchesD, playtimeMin }) {
   const isLowKills = matchesD > 0 && kD < matchesD * 0.6;
-  const isDominantKills = matchesD > 0 && kD >= matchesD * 0.75;
-  const isWarmupOrFlat = (matchesD <= 2 && rpD > -100 && rpD < 120) || (Math.abs(rpD) <= 45);
   const isOvertime = playtimeMin >= 300;
   const isTiltMarathon =
     (matchesD >= 40 && rpD < 0) ||
     (matchesD >= 30 && rpD <= -50) ||
     (matchesD >= 20 && rpD < -100 && isLowKills);
 
+  return { isOvertime, isTiltMarathon };
+}
+
+function evaluateDayCategory({ rpD, kD, matchesD, isOnline }) {
+  const isLowKills = matchesD > 0 && kD < matchesD * 0.6;
+  const isDominantKills = matchesD > 0 && kD >= matchesD * 0.75;
+  const isWarmupOrFlat = (matchesD <= 2 && rpD > -100 && rpD < 120) || (Math.abs(rpD) <= 45);
+
   if (matchesD === 0) {
     return { cat: 'idle', tag: isOnline ? 'Pre-partita' : 'In attesa (Offline)', cls: 'tip-idle' };
-  }
-  if (isOvertime) {
-    const rpSign = rpD >= 0 ? '+' : '';
-    return {
-      cat: 'overtime',
-      tag: `⚠️ OLTRE 5 ORE (${formatDuration(playtimeMin)} · ${rpSign}${rpD} RP)`,
-      cls: 'tip-overtime'
-    };
-  }
-  if (isTiltMarathon) {
-    const rpSign = rpD >= 0 ? '+' : '';
-    return {
-      cat: 'tiltMarathon',
-      tag: `Maratona Tilt (${rpSign}${rpD} RP · ${matchesD} part.)`,
-      cls: 'tip-rp'
-    };
   }
   if (rpD <= -100) {
     return { cat: 'lowRp', tag: `Allarme RP (${rpD})`, cls: 'tip-rp' };
@@ -129,15 +119,32 @@ function calcPlayerHistoricalBadges(uid) {
     }
   });
 
-  const counts = { dominant: 0, good: 0, limbo: 0, lowRp: 0, tiltMarathon: 0, overtime: 0 };
+  const counts = { dominant: 0, good: 0, limbo: 0, lowKills: 0, lowRp: 0, tiltMarathon: 0, overtime: 0 };
   Object.values(daysMap).forEach(d => {
     if (d.matchesD === 0) return;
-    if (d.playtimeMin >= 300) counts.overtime += 1;
-    const res = evaluateDayCategory({ ...d, playtimeMin: 0, isOnline: false });
+    const flags = getDayExtraFlags(d);
+    if (flags.isOvertime) counts.overtime += 1;
+    if (flags.isTiltMarathon) counts.tiltMarathon += 1;
+
+    const res = evaluateDayCategory({ ...d, isOnline: false });
     if (counts[res.cat] !== undefined) counts[res.cat] += 1;
   });
 
   return counts;
+}
+
+function pickUniqueTip(cat, usedIndices, offset) {
+  const pool = (COACH_TIPS[cat] && COACH_TIPS[cat].length) ? COACH_TIPS[cat] : FALLBACK_TIPS[cat];
+  if (!usedIndices[cat]) usedIndices[cat] = new Set();
+
+  let pick = Math.floor(Math.random() * pool.length);
+  let tries = 0;
+  while (usedIndices[cat].has(pick) && tries < pool.length) {
+    pick = (pick + 1 + offset) % pool.length;
+    tries++;
+  }
+  usedIndices[cat].add(pick);
+  return pool[pick];
 }
 
 function buildSquadTips(squadPlayers) {
@@ -148,44 +155,50 @@ function buildSquadTips(squadPlayers) {
     return;
   }
 
-  const usedIndices = {
-    overtime: new Set(),
-    tiltMarathon: new Set(),
-    lowRp: new Set(),
-    lowKills: new Set(),
-    limbo: new Set(),
-    good: new Set(),
-    dominant: new Set(),
-    idle: new Set()
-  };
+  const usedIndices = {};
+  const perfCards = [];
+  const extraCards = [];
 
-  const cards = squadPlayers.map((item, idx) => {
+  squadPlayers.forEach((item, idx) => {
     const name = esc(item.p.name || item.uid);
     const isOnline = item.p && (item.p.is_online || item.p.is_in_game);
-    const { cat, tag, cls } = evaluateDayCategory({
+    const metrics = {
       rpD: item.rpD,
       kD: item.kD,
       matchesD: item.matchesD,
       playtimeMin: item.playtimeD || 0,
       isOnline
-    });
+    };
 
-    const pool = (COACH_TIPS[cat] && COACH_TIPS[cat].length) ? COACH_TIPS[cat] : FALLBACK_TIPS[cat];
-    let pick = Math.floor(Math.random() * pool.length);
-    let tries = 0;
-    while (usedIndices[cat].has(pick) && tries < pool.length) {
-      pick = (pick + 1 + idx) % pool.length;
-      tries++;
-    }
-    usedIndices[cat].add(pick);
+    const { cat, tag, cls } = evaluateDayCategory(metrics);
+    const msg = pickUniqueTip(cat, usedIndices, idx);
 
-    return `<div class="tip-box ${cls}">
+    perfCards.push(`<div class="tip-box ${cls}">
       <div class="tip-head"><span>&#x1F399;&#xFE0F; Per ${name}</span><span>${esc(tag)}</span></div>
-      <div>${esc(pool[pick])}</div>
-    </div>`;
-  }).join('');
+      <div>${esc(msg)}</div>
+    </div>`);
 
-  box.innerHTML = cards;
+    const { isOvertime, isTiltMarathon } = getDayExtraFlags(metrics);
+    const rpSign = item.rpD >= 0 ? '+' : '';
+
+    if (isTiltMarathon) {
+      const tiltMsg = pickUniqueTip('tiltMarathon', usedIndices, idx);
+      extraCards.push(`<div class="tip-box tip-rp">
+        <div class="tip-head"><span>&#x1F300; Maratona Tilt &middot; ${name}</span><span>${rpSign}${item.rpD} RP &middot; ${item.matchesD} part.</span></div>
+        <div>${esc(tiltMsg)}</div>
+      </div>`);
+    }
+
+    if (isOvertime) {
+      const otMsg = pickUniqueTip('overtime', usedIndices, idx);
+      extraCards.push(`<div class="tip-box tip-overtime">
+        <div class="tip-head"><span>&#x26A0;&#xFE0F; Oltre 5 ore &middot; ${name}</span><span>${esc(formatDuration(item.playtimeD || 0))} &middot; ${rpSign}${item.rpD} RP</span></div>
+        <div>${esc(otMsg)}</div>
+      </div>`);
+    }
+  });
+
+  box.innerHTML = [...perfCards, ...extraCards].join('');
   box.classList.remove('hidden');
 }
 
@@ -778,6 +791,7 @@ function renderRecap() {
       { icon: '👑', label: 'Dominio', val: b.dominant },
       { icon: '📈', label: 'In positivo', val: b.good },
       { icon: '⚖️', label: 'In bilico', val: b.limbo },
+      { icon: '🎯', label: 'Mira fredda', val: b.lowKills },
       { icon: '📉', label: 'Allarme RP', val: b.lowRp },
       { icon: '🌀', label: 'Maratona Tilt', val: b.tiltMarathon },
       { icon: '⏳', label: 'Oltre 5h', val: b.overtime }
