@@ -1191,6 +1191,15 @@ function buildPlayerSessions(uid) {
     .filter(c => c[1] === uid && c[2] === 'selected_legend' && typeof c[4] === 'string' && c[4].length > 0)
     .sort((a, b) => a[0] - b[0]);
 
+  const getActiveLegendAt = (ts) => {
+    let active = null;
+    for (let i = 0; i < legendTimeline.length; i++) {
+      if (legendTimeline[i][0] <= ts + 90) active = legendTimeline[i][4];
+      else break;
+    }
+    return active;
+  };
+
   const seenLegends = new Set();
   const sessions = [];
 
@@ -1204,7 +1213,7 @@ function buildPlayerSessions(uid) {
     const last = sessions[sessions.length - 1];
     const hasRpInLast = last && last.items.some(i => i[2] === 'rank_score');
     const lastLegItem = last && last.items.find(i => i[2].startsWith('legend.'));
-    const lastLegName = lastLegItem ? lastLegItem[2].split('.')[1] : null;
+    const lastLegName = lastLegItem ? lastLegItem[2].split('.')[1] : (last ? last.hintLegend : null);
     const isRpNow = k === 'rank_score';
     const isLegendOrTrackerNow = isLegendKey || k.startsWith('total.');
 
@@ -1213,7 +1222,7 @@ function buildPlayerSessions(uid) {
     if (legendTimeline.length) {
       recentLegendSwitch = legendTimeline.some(lt => lt[0] <= c[0] && (c[0] - lt[0]) <= 180);
       if (last) {
-        legendSwitchedBetween = legendTimeline.some(lt => lt[0] > last.startTs + 15 && lt[0] <= c[0]);
+        legendSwitchedBetween = legendTimeline.some(lt => lt[0] > last.ts + 15 && lt[0] <= c[0]);
       }
     }
 
@@ -1222,9 +1231,9 @@ function buildPlayerSessions(uid) {
       maxGap = 10;
     } else if (!hasRpInLast && isRpNow) {
       maxGap = 1320;
-    } else if (hasRpInLast && !lastLegName && isLegendOrTrackerNow) {
+    } else if (hasRpInLast && !lastLegItem && isLegendOrTrackerNow) {
       maxGap = 360;
-    } else if (hasRpInLast && lastLegName && isLegendOrTrackerNow) {
+    } else if (hasRpInLast && lastLegItem && isLegendOrTrackerNow) {
       maxGap = 60;
     }
 
@@ -1232,6 +1241,8 @@ function buildPlayerSessions(uid) {
 
     if (last && !legendSwitchedBetween && sameLegend && (c[0] - last.ts) <= maxGap) {
       last.items.push(c);
+      if (isFirstTimeLegend) last.isFirstTimeLegend = true;
+      if (recentLegendSwitch) last.recentLegendSwitch = true;
       if (!(hasRpInLast && !isRpNow && (c[0] - last.ts) > 60)) {
         last.ts = c[0];
       }
@@ -1240,56 +1251,43 @@ function buildPlayerSessions(uid) {
         startTs: c[0],
         ts: c[0],
         items: [c],
+        hintLegend: legName || getActiveLegendAt(c[0]),
         isFirstTimeLegend,
         recentLegendSwitch
       });
     }
   });
 
-  const syncTimestamps = new Set(
-    sessions
-      .filter(s => s.isFirstTimeLegend && s.recentLegendSwitch && !s.items.some(i => i[2] === 'rank_score'))
-      .map(s => s.ts)
+  const validSessions = sessions.filter(
+    s => !(s.isFirstTimeLegend && s.recentLegendSwitch && !s.items.some(i => i[2] === 'rank_score'))
   );
 
-  return sessions
-    .filter(s => !syncTimestamps.has(s.ts))
-    .map((s, idx, validSessions) => {
-      let legend = null, rpDiff = null, wins = 0;
-      let totalKills = 0, legendKills = 0, totalDmg = 0, legendDmg = 0;
+  return validSessions.map((s, idx) => {
+    let legend = null, rpDiff = null, wins = 0;
+    let totalKills = 0, legendKills = 0, totalDmg = 0, legendDmg = 0;
 
-      s.items.forEach(item => {
-        const k = item[2], diff = Math.round((item[4] - item[3]) * 100) / 100;
-        if (!isValidDelta(k, diff)) return;
+    s.items.forEach(item => {
+      const k = item[2], diff = Math.round((item[4] - item[3]) * 100) / 100;
+      if (!isValidDelta(k, diff)) return;
 
-        if (k.startsWith('legend.')) legend = k.split('.')[1];
-        if (k === 'rank_score') rpDiff = (rpDiff || 0) + diff;
-        else if (k === 'total.kills' || k === 'total.specialEvent_kills') totalKills += diff;
-        else if (k.endsWith('.kills') || k.endsWith('.specialEvent_kills')) legendKills += diff;
-        else if (k === 'total.damage' || k.endsWith('total.specialEvent_damage')) totalDmg += diff;
-        else if (k.endsWith('.damage') || k.endsWith('.specialEvent_damage')) legendDmg += diff;
-        else if (k.endsWith('.wins') && diff > 0 && diff <= 5) wins = Math.max(wins, diff);
-      });
-
-      if (!legend && legendTimeline.length) {
-        let activeLeg = null;
-        for (let i = 0; i < legendTimeline.length; i++) {
-          if (legendTimeline[i][0] <= s.ts + 90) {
-            activeLeg = legendTimeline[i][4];
-          } else {
-            break;
-          }
-        }
-        if (activeLeg) legend = activeLeg;
-      }
-
-      const kills = totalKills > 0 ? totalKills : legendKills;
-      const dmg = totalDmg > 0 ? totalDmg : legendDmg;
-      const prev = idx > 0 ? validSessions[idx - 1] : null;
-      const estMinutes = estimateMatchMinutes(s, prev, rpDiff, kills);
-
-      return { ts: s.ts, legend, rpDiff, wins, kills, dmg, estMinutes };
+      if (k.startsWith('legend.')) legend = k.split('.')[1];
+      if (k === 'rank_score') rpDiff = (rpDiff || 0) + diff;
+      else if (k === 'total.kills' || k === 'total.specialEvent_kills') totalKills += diff;
+      else if (k.endsWith('.kills') || k.endsWith('.specialEvent_kills')) legendKills += diff;
+      else if (k === 'total.damage' || k.endsWith('total.specialEvent_damage')) totalDmg += diff;
+      else if (k.endsWith('.damage') || k.endsWith('.specialEvent_damage')) legendDmg += diff;
+      else if (k.endsWith('.wins') && diff > 0 && diff <= 5) wins = Math.max(wins, diff);
     });
+
+    if (!legend) legend = s.hintLegend || getActiveLegendAt(s.ts);
+
+    const kills = totalKills > 0 ? totalKills : legendKills;
+    const dmg = totalDmg > 0 ? totalDmg : legendDmg;
+    const prev = idx > 0 ? validSessions[idx - 1] : null;
+    const estMinutes = estimateMatchMinutes(s, prev, rpDiff, kills);
+
+    return { ts: s.ts, legend, rpDiff, wins, kills, dmg, estMinutes };
+  });
 }
 
 function calcPlaytimeMinutes(uid, period) {
