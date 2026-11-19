@@ -239,10 +239,8 @@ function buildSquadTips(squadPlayers) {
   }
 
   const usedIndices = {};
-  const perfCards = [];
-  const extraCards = [];
 
-  squadPlayers.forEach((item, idx) => {
+  box.innerHTML = squadPlayers.map((item, idx) => {
     const name = esc(item.p.name || item.uid);
     const isOnline = item.p && (item.p.is_online || item.p.is_in_game);
     const metrics = {
@@ -255,33 +253,40 @@ function buildSquadTips(squadPlayers) {
 
     const { cat, tag, cls } = evaluateDayCategory(metrics);
     const msg = pickUniqueTip(cat, usedIndices, idx);
-
-    perfCards.push(`<div class="tip-box ${cls}">
-      <div class="tip-head"><span>&#x1F399;&#xFE0F; Per ${name}</span><span>${esc(tag)}</span></div>
-      <div>${esc(msg)}</div>
-    </div>`);
-
     const { isOvertime, isTiltMarathon } = getDayExtraFlags(metrics);
     const rpSign = item.rpD >= 0 ? '+' : '';
 
+    const extraBlocks = [];
+
     if (isTiltMarathon) {
       const tiltMsg = pickUniqueTip('tiltMarathon', usedIndices, idx);
-      extraCards.push(`<div class="tip-box tip-rp">
-        <div class="tip-head"><span>&#x1F300; Maratona Tilt &middot; ${name}</span><span>${rpSign}${item.rpD} RP &middot; ${item.matchesD} part.</span></div>
-        <div>${esc(tiltMsg)}</div>
+      extraBlocks.push(`<div style="margin-top:9px;padding-top:8px;border-top:1px dashed rgba(255,255,255,0.12)">
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--bad,#e0463a);margin-bottom:3px">
+          <span>&#x1F300; Maratona Tilt</span>
+          <span>${rpSign}${item.rpD} RP &middot; ${item.matchesD} part.</span>
+        </div>
+        <div style="opacity:0.95">${esc(tiltMsg)}</div>
       </div>`);
     }
 
     if (isOvertime) {
       const otMsg = pickUniqueTip('overtime', usedIndices, idx);
-      extraCards.push(`<div class="tip-box tip-overtime">
-        <div class="tip-head"><span>&#x26A0;&#xFE0F; Oltre 5 ore &middot; ${name}</span><span>${esc(formatDuration(item.playtimeD || 0))} &middot; ${rpSign}${item.rpD} RP</span></div>
-        <div>${esc(otMsg)}</div>
+      extraBlocks.push(`<div style="margin-top:9px;padding-top:8px;border-top:1px dashed rgba(255,255,255,0.12)">
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;text-transform:uppercase;color:#f59e0b;margin-bottom:3px">
+          <span>&#x26A0;&#xFE0F; Oltre 5 ore</span>
+          <span>${esc(formatDuration(item.playtimeD || 0))}</span>
+        </div>
+        <div style="opacity:0.95">${esc(otMsg)}</div>
       </div>`);
     }
-  });
 
-  box.innerHTML = [...perfCards, ...extraCards].join('');
+    return `<div class="tip-box ${cls}">
+      <div class="tip-head"><span>&#x1F399;&#xFE0F; Per ${name}</span><span>${esc(tag)}</span></div>
+      <div>${esc(msg)}</div>
+      ${extraBlocks.join('')}
+    </div>`;
+  }).join('');
+
   box.classList.remove('hidden');
 }
 
