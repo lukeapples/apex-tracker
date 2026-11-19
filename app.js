@@ -1231,10 +1231,8 @@ function buildPlayerSessions(uid) {
       maxGap = 10;
     } else if (!hasRpInLast && isRpNow) {
       maxGap = 1320;
-    } else if (hasRpInLast && !lastLegItem && isLegendOrTrackerNow) {
+    } else if (hasRpInLast && isLegendOrTrackerNow) {
       maxGap = 360;
-    } else if (hasRpInLast && lastLegItem && isLegendOrTrackerNow) {
-      maxGap = 60;
     }
 
     const sameLegend = !lastLegName || !legName || lastLegName === legName;
