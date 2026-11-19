@@ -230,7 +230,7 @@ function isValidDelta(key, diff) {
   if (key !== 'rank_score' && diff <= 0) return false;
   if ((key.endsWith('.kills') || key.endsWith('.specialEvent_kills')) && diff > 35) return false;
   if ((key.endsWith('.damage') || key.endsWith('.specialEvent_damage')) && diff > 8000) return false;
-  if (key.endswith('.games_played') && diff > 20) return false;
+  if (key.endsWith('.games_played') && diff > 20) return false;
   return true;
 }
 
@@ -270,70 +270,6 @@ function getGamingDayInfo(ts) {
 
   const label = shifted.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
   return { key, label: label.charAt(0).toUpperCase() + label.slice(1) };
-}
-
-function createTimeCompressor(allTimestampsSec, enabled) {
-  const sorted = [...new Set(allTimestampsSec)].sort((a, b) => a - b);
-  const GAP_THRESHOLD = 2700;
-  const COMPRESSED_GAP = 1500;
-
-  if (!enabled || sorted.length < 2) {
-    return {
-      toPlotX: tsSec => tsSec * 1000,
-      toRealTs: plotX => Math.round(plotX / 1000),
-      breaks: []
-    };
-  }
-
-  const mapped = [sorted[0]];
-  const breaks = [];
-
-  for (let i = 1; i < sorted.length; i++) {
-    const diff = sorted[i] - sorted[i - 1];
-    if (diff > GAP_THRESHOLD) {
-      mapped.push(mapped[i - 1] + COMPRESSED_GAP);
-      breaks.push(mapped[i - 1] + COMPRESSED_GAP / 2);
-    } else {
-      mapped.push(mapped[i - 1] + diff);
-    }
-  }
-
-  const toPlotX = (tsSec) => {
-    if (tsSec <= sorted[0]) return mapped[0] * 1000;
-    const lastIdx = sorted.length - 1;
-    if (tsSec >= sorted[lastIdx]) return mapped[lastIdx] * 1000;
-
-    let lo = 0, hi = lastIdx;
-    while (lo <= hi) {
-      const mid = (lo + hi) >> 1;
-      if (sorted[mid] === tsSec) return mapped[mid] * 1000;
-      if (sorted[mid] < tsSec) lo = mid + 1;
-      else hi = mid - 1;
-    }
-
-    const ratio = (tsSec - sorted[hi]) / (sorted[lo] - sorted[hi]);
-    return (mapped[hi] + ratio * (mapped[lo] - mapped[hi])) * 1000;
-  };
-
-  const toRealTs = (plotX) => {
-    const pSec = plotX / 1000;
-    if (pSec <= mapped[0]) return sorted[0];
-    const lastIdx = mapped.length - 1;
-    if (pSec >= mapped[lastIdx]) return sorted[lastIdx];
-
-    let lo = 0, hi = lastIdx;
-    while (lo <= hi) {
-      const mid = (lo + hi) >> 1;
-      if (mapped[mid] === pSec) return sorted[mid];
-      if (mapped[mid] < pSec) lo = mid + 1;
-      else hi = mid - 1;
-    }
-
-    const ratio = (pSec - mapped[hi]) / (mapped[lo] - mapped[hi]);
-    return Math.round(sorted[hi] + ratio * (sorted[lo] - sorted[hi]));
-  };
-
-  return { toPlotX, toRealTs, breaks };
 }
 
 const RANK_TIERS = [
@@ -383,37 +319,17 @@ const rpGuidesPlugin = {
   id: 'rpGuides',
   afterDatasetsDraw(chart) {
     const { ctx, chartArea: { left, right, top, bottom }, scales: { x, y } } = chart;
-    const comp = chart.options.plugins.timeCompressor;
     ctx.save();
 
-    if (comp && comp.breaks && comp.breaks.length) {
-      comp.breaks.forEach(bSec => {
-        const xPos = x.getPixelForValue(bSec * 1000);
-        if (xPos >= left && xPos <= right) {
-          ctx.beginPath();
-          ctx.setLineDash([2, 4]);
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-          ctx.lineWidth = 1;
-          ctx.moveTo(xPos, top);
-          ctx.lineTo(xPos, bottom);
-          ctx.stroke();
-          ctx.setLineDash([]);
-        }
-      });
-    }
-
-    const minRealMs = comp ? comp.toRealTs(x.min) * 1000 : x.min;
-    const maxRealMs = comp ? comp.toRealTs(x.max) * 1000 : x.max;
-
-    if (minRealMs && maxRealMs && maxRealMs > minRealMs) {
-      const d = new Date(minRealMs);
+    const minTs = x.min;
+    const maxTs = x.max;
+    if (minTs && maxTs && maxTs > minTs) {
+      const d = new Date(minTs);
       d.setHours(4, 0, 0, 0);
-      if (d.getTime() < minRealMs) d.setDate(d.getDate() + 1);
+      if (d.getTime() < minTs) d.setDate(d.getDate() + 1);
 
-      while (d.getTime() <= maxRealMs) {
-        const plotX = comp ? comp.toPlotX(d.getTime() / 1000) : d.getTime();
-        const xPos = x.getPixelForValue(plotX);
-
+      while (d.getTime() <= maxTs) {
+        const xPos = x.getPixelForValue(d.getTime());
         if (xPos >= left && xPos <= right) {
           ctx.beginPath();
           ctx.setLineDash([3, 3]);
@@ -733,9 +649,8 @@ function calcLegendBreakdown(uid, period) {
 
 function getSegmentStyle(hexColor) {
   const isPause = (ctx) => {
-    const t0 = ctx.p0.raw && ctx.p0.raw.realTs != null ? ctx.p0.raw.realTs : ctx.p0.parsed.x / 1000;
-    const t1 = ctx.p1.raw && ctx.p1.raw.realTs != null ? ctx.p1.raw.realTs : ctx.p1.parsed.x / 1000;
-    return Math.abs(t1 - t0) > 2700;
+    const diff = Math.abs(ctx.p1.parsed.x - ctx.p0.parsed.x);
+    return diff > 2700000;
   };
 
   return {
@@ -751,7 +666,6 @@ function renderCompare() {
   const uids = Object.keys(D.status);
   const colors = ['#e0463a', '#3b7be3', '#1ea653', '#d4af37', '#a349e5'];
   const isRelative = $('compare-relative') && $('compare-relative').checked;
-  const isCompact = $('compare-compact') && $('compare-compact').checked;
   const minCutoff = compareDays > 0 ? Math.floor(Date.now() / 1000) - compareDays * 86400 : 0;
 
   const squadPlayers = uids.map((u, origIdx) => {
@@ -781,31 +695,17 @@ function renderCompare() {
 
   buildSquadTips(squadPlayers);
 
-  const playerRowsMap = {};
-  const allFilteredTs = [];
-
-  squadPlayers.forEach(item => {
+  const datasets = squadPlayers.map(item => {
     const allRp = D.changes.filter(c => c[1] === item.uid && c[2] === 'rank_score');
     let rows = minCutoff ? allRp.filter(c => c[0] >= minCutoff) : allRp;
     if (!rows.length && allRp.length) rows = [allRp[allRp.length - 1]];
-    playerRowsMap[item.uid] = rows;
-    rows.forEach(r => allFilteredTs.push(r[0]));
-  });
 
-  const comp = createTimeCompressor(allFilteredTs, isCompact);
-
-  const datasets = squadPlayers.map(item => {
-    const rows = playerRowsMap[item.uid];
     const baseVal = (isRelative && rows.length) ? rows[0][4] : 0;
     const styles = buildPointStyles(rows, item.color);
 
     return {
       label: item.p.name || item.uid,
-      data: rows.map(r => ({
-        x: comp.toPlotX(r[0]),
-        y: Math.round((r[4] - baseVal) * 100) / 100,
-        realTs: r[0]
-      })),
+      data: rows.map(r => ({ x: r[0] * 1000, y: Math.round((r[4] - baseVal) * 100) / 100 })),
       borderColor: item.color,
       backgroundColor: item.color,
       segment: getSegmentStyle(item.color),
@@ -827,11 +727,10 @@ function renderCompare() {
       parsing: false,
       interaction: { mode: 'nearest', axis: 'x', intersect: false },
       plugins: {
-        timeCompressor: comp,
         zoom: mobileZoomOptions,
         tooltip: {
           callbacks: {
-            title: items => items.length ? fmt(items[0].raw.realTs) : '',
+            title: items => items.length ? fmt(items[0].parsed.x / 1000) : '',
             label: ctx => {
               const v = ctx.parsed.y;
               return ` ${ctx.dataset.label}: ${isRelative && v >= 0 ? '+' : ''}${v} RP`;
@@ -846,7 +745,7 @@ function renderCompare() {
             maxTicksLimit: 5,
             maxRotation: 0,
             callback: v => {
-              const d = new Date(comp.toRealTs(v) * 1000);
+              const d = new Date(v);
               return compareDays > 0 && compareDays <= 2
                 ? d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
                 : d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
@@ -1043,12 +942,10 @@ function renderMatches() {
 
 function renderOverview() {
   const uid = $('player').value, k = $('key').value;
-  const isCompact = $('overview-compact') && $('overview-compact').checked;
   const minCutoff = overviewDays > 0 ? Math.floor(Date.now() / 1000) - overviewDays * 86400 : 0;
   const allRows = D.changes.filter(c => c[1] === uid && c[2] === k);
   const rows = minCutoff ? allRows.filter(c => c[0] >= minCutoff) : allRows;
 
-  const comp = createTimeCompressor(rows.map(r => r[0]), isCompact);
   const lineColor = k === 'rank_score' ? '#d4af37' : '#e0463a';
   const styles = buildPointStyles(rows, lineColor);
 
@@ -1058,7 +955,7 @@ function renderOverview() {
     data: {
       datasets: [{
         label: labelKey(k),
-        data: rows.map(r => ({ x: comp.toPlotX(r[0]), y: r[4], realTs: r[0] })),
+        data: rows.map(r => ({ x: r[0] * 1000, y: r[4] })),
         tension: 0.15,
         pointRadius: styles.radii,
         pointBackgroundColor: styles.bgColors,
@@ -1076,11 +973,10 @@ function renderOverview() {
       parsing: false,
       interaction: { mode: 'nearest', axis: 'x', intersect: false },
       plugins: {
-        timeCompressor: comp,
         zoom: mobileZoomOptions,
         tooltip: {
           callbacks: {
-            title: items => items.length ? fmt(items[0].raw.realTs) : ''
+            title: items => items.length ? fmt(items[0].parsed.x / 1000) : ''
           }
         }
       },
@@ -1091,7 +987,7 @@ function renderOverview() {
             maxTicksLimit: 5,
             maxRotation: 0,
             callback: v => {
-              const d = new Date(comp.toRealTs(v) * 1000);
+              const d = new Date(v);
               return overviewDays > 0 && overviewDays <= 2
                 ? d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
                 : d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
@@ -1141,8 +1037,8 @@ function estimateMatchMinutes(curSession, prevSession, rpDiff, kills) {
     }
   }
 
-  if (rpDiff !== null && rpDiff < 0 && est > 16) {
-    est = Math.floor(est / 2);
+  if (rpDiff !== null && rpDiff < -10 && est > 16) {
+    est = Math.floor(est / 3);
   }
 
   return est;
