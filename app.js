@@ -65,9 +65,17 @@ function createTimeCompressor(allTimestampsSec, enabled) {
   const GAP_THRESHOLD = 2700;
   const COMPRESSED_GAP = 1500;
 
+  const calcBounds = (startMs, endMs) => {
+    if (startMs === undefined || endMs === undefined) return { minX: undefined, maxX: undefined };
+    const span = Math.max(endMs - startMs, 10 * 60 * 1000);
+    const pad = Math.round(span * 0.03); // 3% di margine a sinistra e a destra
+    return { minX: startMs - pad, maxX: endMs + pad };
+  };
+
   if (!enabled || sorted.length < 2) {
-    const minX = sorted.length ? sorted[0] * 1000 : undefined;
-    const maxX = sorted.length ? sorted[sorted.length - 1] * 1000 : undefined;
+    const startMs = sorted.length ? sorted[0] * 1000 : undefined;
+    const endMs = sorted.length ? sorted[sorted.length - 1] * 1000 : undefined;
+    const { minX, maxX } = calcBounds(startMs, endMs);
     return {
       enabled: false,
       minX,
@@ -126,10 +134,12 @@ function createTimeCompressor(allTimestampsSec, enabled) {
     return Math.round(sorted[hi] + ratio * (sorted[lo] - sorted[hi]));
   };
 
+  const { minX, maxX } = calcBounds(mapped[0] * 1000, mapped[mapped.length - 1] * 1000);
+
   return {
     enabled: true,
-    minX: mapped[0] * 1000,
-    maxX: mapped[mapped.length - 1] * 1000,
+    minX,
+    maxX,
     toPlotX,
     toRealTs,
     breaks
