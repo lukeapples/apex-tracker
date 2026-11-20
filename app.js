@@ -803,13 +803,13 @@ function renderCompare() {
 
   const squadPlayers = uids.map((u, origIdx) => {
     const p = D.status[u] || {};
-    const rpRows = D.changes.filter(c => c[1] === u && c[2] === 'rank_score');
+    const rpRows = getPlayerRpTimeline(u);
     const curRp = rpRows.length ? rpRows[rpRows.length - 1][4] : -1;
     const dAgg = calcPeriodStats(u, 'day');
     const rankedCombat = calcRankedCombatStats(u, 'day');
     const rpD = dAgg['rank_score'] ? dAgg['rank_score'].delta : 0;
     const kD = rankedCombat.kills;
-    const matchesD = dAgg['rank_score'] ? dAgg['rank_score'].count : 0;
+    const matchesD = rankedCombat.matches;
     const playtimeD = calcPlaytimeMinutes(u, 'day');
     return { uid: u, p, curRp, rpD, kD, matchesD, playtimeD, color: colors[origIdx % colors.length] };
   }).sort((a, b) => b.curRp - a.curRp);
@@ -832,7 +832,7 @@ function renderCompare() {
   const allFilteredTs = [];
 
   squadPlayers.forEach(item => {
-    const allRp = D.changes.filter(c => c[1] === item.uid && c[2] === 'rank_score');
+    const allRp = getPlayerRpTimeline(item.uid);
     let rows = minCutoff ? allRp.filter(c => c[0] >= minCutoff) : allRp;
     if (!rows.length && allRp.length) rows = [allRp[allRp.length - 1]];
     playerRowsMap[item.uid] = rows;
@@ -969,7 +969,7 @@ function renderRecap() {
   }
 
   const rp = agg['rank_score'] ? agg['rank_score'].delta : 0;
-  const rankedMatches = agg['rank_score'] ? agg['rank_score'].count : 0;
+  const rankedMatches = rankedCombat.matches;
   const kills = rankedCombat.kills;
   const dmg = rankedCombat.dmg;
   const playtime = formatDuration(calcPlaytimeMinutes(uid, p));
@@ -1100,7 +1100,9 @@ function renderOverview() {
   const uid = $('player').value, k = $('key').value;
   const isCompact = isCompactChecked('overview');
   const minCutoff = overviewDays > 0 ? Math.floor(Date.now() / 1000) - overviewDays * 86400 : 0;
-  const allRows = D.changes.filter(c => c[1] === uid && c[2] === k);
+  const allRows = k === 'rank_score'
+    ? getPlayerRpTimeline(uid)
+    : D.changes.filter(c => c[1] === uid && c[2] === k);
   const rows = minCutoff ? allRows.filter(c => c[0] >= minCutoff) : allRows;
 
   const comp = createTimeCompressor(rows.map(r => r[0]), isCompact);
@@ -1153,13 +1155,13 @@ function renderOverview() {
             maxRotation: 0,
             callback: v => {
               const d = new Date(comp.toRealTs(v) * 1000);
-              return compareDays > 0 && compareDays <= 2
+              return overviewDays > 0 && overviewDays <= 2
                 ? d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
                 : d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
             }
           }
         },
-        y: { grace: '8%' }
+        y: { grace: '10%' }
       }
     }
   });
@@ -1341,6 +1343,26 @@ function buildPlayerSessions(uid) {
 
     return { ts: s.ts, legend, rpDiff, wins, kills, dmg, estMinutes };
   });
+}
+
+function getPlayerRpTimeline(uid) {
+  const realRp = D.changes.filter(c => c[1] === uid && c[2] === 'rank_score');
+  if (!realRp.length) return [];
+
+  const zeroSessions = buildPlayerSessions(uid).filter(s => s.rpDiff === 0);
+  if (!zeroSessions.length) return realRp;
+
+  const merged = [...realRp];
+  zeroSessions.forEach(zs => {
+    // Evita duplicati se esiste già un record rank_score vicino
+    if (merged.some(r => Math.abs(r[0] - zs.ts) <= 180)) return;
+    const prev = [...merged].reverse().find(r => r[0] <= zs.ts);
+    if (prev) {
+      merged.push([zs.ts, uid, 'rank_score', prev[4], prev[4]]);
+    }
+  });
+
+  return merged.sort((a, b) => a[0] - b[0]);
 }
 
 function calcPlaytimeMinutes(uid, period) {
