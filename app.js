@@ -66,8 +66,12 @@ function createTimeCompressor(allTimestampsSec, enabled) {
   const COMPRESSED_GAP = 1500;
 
   if (!enabled || sorted.length < 2) {
+    const minX = sorted.length ? sorted[0] * 1000 : undefined;
+    const maxX = sorted.length ? sorted[sorted.length - 1] * 1000 : undefined;
     return {
       enabled: false,
+      minX,
+      maxX,
       toPlotX: tsSec => tsSec * 1000,
       toRealTs: plotX => Math.round(plotX / 1000),
       breaks: []
@@ -122,7 +126,14 @@ function createTimeCompressor(allTimestampsSec, enabled) {
     return Math.round(sorted[hi] + ratio * (sorted[lo] - sorted[hi]));
   };
 
-  return { enabled: true, toPlotX, toRealTs, breaks };
+  return {
+    enabled: true,
+    minX: mapped[0] * 1000,
+    maxX: mapped[mapped.length - 1] * 1000,
+    toPlotX,
+    toRealTs,
+    breaks
+  };
 }
 
 function getPeriodBounds(period) {
@@ -872,6 +883,8 @@ function renderCompare() {
       scales: {
         x: {
           type: 'linear',
+          min: comp.minX,
+          max: comp.maxX,
           ticks: {
             maxTicksLimit: 5,
             maxRotation: 0,
@@ -1123,18 +1136,20 @@ function renderOverview() {
       scales: {
         x: {
           type: 'linear',
+          min: comp.minX,
+          max: comp.maxX,
           ticks: {
             maxTicksLimit: 5,
             maxRotation: 0,
             callback: v => {
               const d = new Date(comp.toRealTs(v) * 1000);
-              return overviewDays > 0 && overviewDays <= 2
+              return compareDays > 0 && compareDays <= 2
                 ? d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
                 : d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
             }
           }
         },
-        y: { grace: '10%' }
+        y: { grace: '8%' }
       }
     }
   });
@@ -1290,6 +1305,22 @@ function buildPlayerSessions(uid) {
       else if (k.endsWith('.damage') || k.endsWith('.specialEvent_damage')) legendDmg += diff;
       else if (k.endsWith('.wins') && diff > 0 && diff <= 5) wins = Math.max(wins, diff);
     });
+
+    if (rpDiff === null) {
+      const teammatePlayedRanked = D.changes.some(c => {
+        if (c[1] === uid || c[2] !== 'rank_score') return false;
+        if (Math.abs(c[0] - s.ts) <= 60) return true;
+        if (c[0] <= s.ts && (s.ts - c[0]) <= 150) {
+          return D.changes.some(
+            t => t[1] === c[1] && t[2] !== 'rank_score' && t[2] !== 'selected_legend' && Math.abs(t[0] - s.ts) <= 15
+          );
+        }
+        return false;
+      });
+      if (teammatePlayedRanked) {
+        rpDiff = 0;
+      }
+    }
 
     if (!legend) legend = s.hintLegend || getActiveLegendAt(s.ts);
 
