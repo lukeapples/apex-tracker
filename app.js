@@ -172,8 +172,8 @@ function getDayExtraFlags({ rpD, kD, matchesD, playtimeMin }) {
   const isOvertime = playtimeMin >= 300;
   const isTiltMarathon =
     (matchesD >= 20 && rpD < -50) ||
-    (matchesD >= 30 && rpD < 50) ||
-    (matchesD >= 40 && rpD < 200);
+    (matchesD >= 30 && rpD < 100) ||
+    (matchesD >= 40);
 
   return { isLowKills, isOvertime, isTiltMarathon };
 }
@@ -918,6 +918,90 @@ function renderCompare() {
   compareChart.update('none');
 }
 
+const BADGE_INFO = {
+  dominant: {
+    icon: '👑',
+    label: 'Dominio',
+    color: '#1ea653',
+    bg: 'rgba(30, 166, 83, 0.14)',
+    border: 'rgba(30, 166, 83, 0.35)',
+    desc: 'Giornata chiusa con almeno +200 RP e una media kill ≥ 0,9 (4+ kill minime).'
+  },
+  good: {
+    icon: '📈',
+    label: 'In positivo',
+    color: '#1ea653',
+    bg: 'rgba(30, 166, 83, 0.14)',
+    border: 'rgba(30, 166, 83, 0.35)',
+    desc: 'Giornata chiusa con un guadagno di almeno +100 RP.'
+  },
+  limbo: {
+    icon: '⚖️',
+    label: 'In bilico',
+    color: '#9aa4b0',
+    bg: 'rgba(255, 255, 255, 0.05)',
+    border: 'rgba(255, 255, 255, 0.14)',
+    desc: 'Giornata di transizione chiusa tra -99 RP e +99 RP.'
+  },
+  lowKills: {
+    icon: '🎯',
+    label: 'Mira fredda',
+    color: '#f59e0b',
+    bg: 'rgba(245, 158, 11, 0.14)',
+    border: 'rgba(245, 158, 11, 0.35)',
+    desc: 'Giornata chiusa con saldo ≤ +50 RP e media inferiore a 0,5 kill a partita.'
+  },
+  lowRp: {
+    icon: '📉',
+    label: 'Allarme RP',
+    color: '#e0463a',
+    bg: 'rgba(224, 70, 58, 0.14)',
+    border: 'rgba(224, 70, 58, 0.35)',
+    desc: 'Giornata chiusa con una perdita pesante di almeno -100 RP.'
+  },
+  tiltMarathon: {
+    icon: '🌀',
+    label: 'Maratona Tilt',
+    color: '#e0463a',
+    bg: 'rgba(224, 70, 58, 0.14)',
+    border: 'rgba(224, 70, 58, 0.35)',
+    desc: 'Sessione lunghissima senza resa (≥20 partite con meno di -50 RP, ≥30 partite con meno di +100 RP, oppure ≥40 partite).'
+  },
+  overtime: {
+    icon: '⏳',
+    label: 'Oltre 5h',
+    color: '#f59e0b',
+    bg: 'rgba(245, 158, 11, 0.14)',
+    border: 'rgba(245, 158, 11, 0.35)',
+    desc: 'Almeno 5 ore di gioco stimate nella stessa giornata.'
+  }
+};
+
+function toggleBadgePopover(key, count) {
+  const pop = $('badge-popover');
+  if (!pop) return;
+  const info = BADGE_INFO[key];
+  if (!info) return;
+
+  // Se riclicchi lo stesso badge già aperto, lo chiude
+  if (pop.dataset.activeKey === key && !pop.classList.contains('hidden')) {
+    pop.classList.add('hidden');
+    pop.dataset.activeKey = '';
+    return;
+  }
+
+  pop.dataset.activeKey = key;
+  pop.style.borderColor = info.border;
+  pop.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <b style="color:${info.color};font-size:12px">${info.icon} ${esc(info.label)} (${count} ${count === 1 ? 'giornata' : 'giornate'})</b>
+      <span onclick="$('badge-popover').classList.add('hidden');$('badge-popover').dataset.activeKey=''" style="cursor:pointer;color:var(--mut);font-size:14px;line-height:1;padding:0 4px">&times;</span>
+    </div>
+    <div style="font-size:12px;line-height:1.4;color:var(--fg);opacity:0.92">${esc(info.desc)}</div>
+  `;
+  pop.classList.remove('hidden');
+}
+
 function renderRecap() {
   const uid = $('player-recap').value;
   const pObj = D.status[uid] || {};
@@ -944,27 +1028,30 @@ function renderRecap() {
     </div>` : ''}
   `;
 
-  const badgeBox = $('recap-badges');
+const badgeBox = $('recap-badges');
   if (badgeBox) {
     const b = calcPlayerHistoricalBadges(uid);
-    const badgeItems = [
-      { icon: '👑', label: 'Dominio', val: b.dominant },
-      { icon: '📈', label: 'In positivo', val: b.good },
-      { icon: '⚖️', label: 'In bilico', val: b.limbo },
-      { icon: '🎯', label: 'Mira fredda', val: b.lowKills },
-      { icon: '📉', label: 'Allarme RP', val: b.lowRp },
-      { icon: '🌀', label: 'Maratona Tilt', val: b.tiltMarathon },
-      { icon: '⏳', label: 'Oltre 5h', val: b.overtime }
-    ].filter(x => x.val > 0);
+    const keysOrder = ['dominant', 'good', 'limbo', 'lowKills', 'lowRp', 'tiltMarathon', 'overtime'];
+    const badgeItems = keysOrder
+      .map(key => ({ key, val: b[key], ...BADGE_INFO[key] }))
+      .filter(x => x.val > 0);
 
     if (badgeItems.length) {
       badgeBox.innerHTML = `
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--mut);margin-bottom:6px">
-          Chiusure Giornata Storiche
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--mut)">Chiusure Giornata Storiche</span>
+          <span style="font-size:10px;color:var(--mut)">Tocca un badge</span>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:6px">
-          ${badgeItems.map(x => `<span class="hist-badge">${x.icon} ${x.label}: <b>${x.val}</b></span>`).join('')}
+          ${badgeItems.map(x => `
+            <button type="button" onclick="toggleBadgePopover('${x.key}', ${x.val})"
+              style="cursor:pointer;display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:8px;font-size:12px;color:var(--fg);background:${x.bg};border:1px solid ${x.border}">
+              <span>${x.icon}</span>
+              <span>${x.label}: <b style="color:${x.color}">${x.val}</b></span>
+            </button>
+          `).join('')}
         </div>
+        <div id="badge-popover" class="hidden" style="margin-top:9px;padding:9px 11px;border-radius:8px;background:rgba(15,18,24,0.92);border:1px solid rgba(255,255,255,0.15)"></div>
       `;
       badgeBox.classList.remove('hidden');
     } else {
