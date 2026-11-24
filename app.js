@@ -215,9 +215,10 @@ function calcPlayerHistoricalBadges(uid) {
     }
   });
 
-  const counts = { dominant: 0, good: 0, limbo: 0, lowKills: 0, lowRp: 0, tiltMarathon: 0, overtime: 0 };
+  const counts = { totalDays: 0, dominant: 0, good: 0, limbo: 0, lowKills: 0, lowRp: 0, tiltMarathon: 0, overtime: 0 };
   Object.values(daysMap).forEach(d => {
     if (d.matchesD === 0) return;
+    counts.totalDays += 1;
     const flags = getDayExtraFlags(d);
     if (flags.isLowKills) counts.lowKills += 1;
     if (flags.isOvertime) counts.overtime += 1;
@@ -947,7 +948,7 @@ const BADGE_INFO = {
     icon: '🎯',
     label: 'Mira fredda',
     color: '#f59e0b',
-    bg: 'rgba(245, 158, 11, 0.14)',
+    bg: 'rgba(245, 158, 11, 0.07)',
     border: 'rgba(245, 158, 11, 0.35)',
     desc: 'Giornata chiusa con saldo ≤ +50 RP e media inferiore a 0,5 kill a partita.'
   },
@@ -955,7 +956,7 @@ const BADGE_INFO = {
     icon: '📉',
     label: 'Allarme RP',
     color: '#e0463a',
-    bg: 'rgba(224, 70, 58, 0.14)',
+    bg: 'rgba(224, 70, 58, 0.07)',
     border: 'rgba(224, 70, 58, 0.35)',
     desc: 'Giornata chiusa con una perdita pesante di almeno -100 RP.'
   },
@@ -963,7 +964,7 @@ const BADGE_INFO = {
     icon: '🌀',
     label: 'Maratona Tilt',
     color: '#e0463a',
-    bg: 'rgba(224, 70, 58, 0.14)',
+    bg: 'rgba(224, 70, 58, 0.07)',
     border: 'rgba(224, 70, 58, 0.35)',
     desc: 'Sessione lunghissima senza resa (≥20 partite con meno di -50 RP, ≥30 partite con meno di +100 RP, oppure ≥40 partite).'
   },
@@ -971,7 +972,7 @@ const BADGE_INFO = {
     icon: '⏳',
     label: 'Oltre 5h',
     color: '#f59e0b',
-    bg: 'rgba(245, 158, 11, 0.14)',
+    bg: 'rgba(245, 158, 11, 0.07)',
     border: 'rgba(245, 158, 11, 0.35)',
     desc: 'Almeno 5 ore di gioco stimate nella stessa giornata.'
   }
@@ -1038,16 +1039,21 @@ const badgeBox = $('recap-badges');
 
     if (badgeItems.length) {
       badgeBox.innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <span style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--mut)">Chiusure Giornata Storiche</span>
-          <span style="font-size:10px;color:var(--mut)">Tocca un badge</span>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px">
+          <span style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--mut)">
+            Chiusure Giornata Storiche (${b.totalDays} ${b.totalDays === 1 ? 'giorno' : 'giorni'})
+          </span>
+          <span style="font-size:10px;color:var(--mut);white-space:nowrap">Tocca un badge</span>
         </div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(135px, 1fr));gap:7px">
           ${badgeItems.map(x => `
             <button type="button" onclick="toggleBadgePopover('${x.key}', ${x.val})"
-              style="cursor:pointer;display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:8px;font-size:12px;color:var(--fg);background:${x.bg};border:1px solid ${x.border}">
-              <span>${x.icon}</span>
-              <span>${x.label}: <b style="color:${x.color}">${x.val}</b></span>
+              style="cursor:pointer;width:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:7px 10px;border-radius:8px;font-size:12px;color:var(--fg);background:${x.bg};border:1px solid ${x.border}">
+              <span style="display:inline-flex;align-items:center;gap:6px;min-width:0">
+                <span>${x.icon}</span>
+                <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x.label}</span>
+              </span>
+              <b style="color:${x.color};font-size:13px">${x.val}</b>
             </button>
           `).join('')}
         </div>
