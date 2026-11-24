@@ -168,20 +168,19 @@ function getPeriodBounds(period) {
 }
 
 function getDayExtraFlags({ rpD, kD, matchesD, playtimeMin }) {
-  const isLowKills = matchesD > 0 && kD < matchesD * 0.6;
+  const isLowKills = matchesD > 2 && rpD <= 50 && kD < matchesD * 0.5;
   const isOvertime = playtimeMin >= 300;
   const isTiltMarathon =
-    (matchesD >= 40 && rpD < 0) ||
-    (matchesD >= 30 && rpD <= -50) ||
-    (matchesD >= 20 && rpD < -100 && isLowKills);
+    (matchesD >= 20 && rpD < -50) ||
+    (matchesD >= 30 && rpD < 50) ||
+    (matchesD >= 40 && rpD < 200);
 
-  return { isOvertime, isTiltMarathon };
+  return { isLowKills, isOvertime, isTiltMarathon };
 }
 
 function evaluateDayCategory({ rpD, kD, matchesD, isOnline }) {
-  const isLowKills = matchesD > 0 && kD < matchesD * 0.6;
-  const isDominantKills = matchesD > 0 && kD >= matchesD * 0.75;
-  const isWarmupOrFlat = (matchesD <= 2 && rpD > -100 && rpD < 120) || (Math.abs(rpD) <= 45);
+  const isDominantKills = matchesD > 0 && kD >= matchesD * 0.9 && kD > 3;
+  const rpSign = rpD >= 0 ? '+' : '';
 
   if (matchesD === 0) {
     return { cat: 'idle', tag: isOnline ? 'Pre-partita' : 'In attesa (Offline)', cls: 'tip-idle' };
@@ -189,20 +188,13 @@ function evaluateDayCategory({ rpD, kD, matchesD, isOnline }) {
   if (rpD <= -100) {
     return { cat: 'lowRp', tag: `Allarme RP (${rpD})`, cls: 'tip-rp' };
   }
-  if (rpD < -45 && isLowKills) {
-    return { cat: 'lowKills', tag: `Mira fredda (${kD} kill / ${matchesD} part.)`, cls: 'tip-kills' };
-  }
-  if (isWarmupOrFlat || rpD <= 45) {
-    const rpSign = rpD >= 0 ? '+' : '';
-    const tag = rpD < -45
-      ? `Kill ok (${kD}/${matchesD}), RP ${rpD}`
-      : `In bilico (${rpSign}${rpD} RP · ${matchesD} part.)`;
-    return { cat: 'limbo', tag, cls: 'tip-kills' };
-  }
-  if (rpD >= 100 && isDominantKills) {
+  if (rpD >= 200 && isDominantKills) {
     return { cat: 'dominant', tag: `Dominio (+${rpD} RP · ${kD} kill)`, cls: 'tip-good' };
   }
-  return { cat: 'good', tag: `In positivo (+${rpD} RP)`, cls: 'tip-good' };
+  if (rpD >= 100) {
+    return { cat: 'good', tag: `In positivo (+${rpD} RP)`, cls: 'tip-good' };
+  }
+  return { cat: 'limbo', tag: `In bilico (${rpSign}${rpD} RP · ${matchesD} part.)`, cls: 'tip-kills' };
 }
 
 function calcPlayerHistoricalBadges(uid) {
@@ -227,6 +219,7 @@ function calcPlayerHistoricalBadges(uid) {
   Object.values(daysMap).forEach(d => {
     if (d.matchesD === 0) return;
     const flags = getDayExtraFlags(d);
+    if (flags.isLowKills) counts.lowKills += 1;
     if (flags.isOvertime) counts.overtime += 1;
     if (flags.isTiltMarathon) counts.tiltMarathon += 1;
 
@@ -274,10 +267,21 @@ function buildSquadTips(squadPlayers) {
 
     const { cat, tag, cls } = evaluateDayCategory(metrics);
     const msg = pickUniqueTip(cat, usedIndices, idx);
-    const { isOvertime, isTiltMarathon } = getDayExtraFlags(metrics);
+    const { isLowKills, isOvertime, isTiltMarathon } = getDayExtraFlags(metrics);
     const rpSign = item.rpD >= 0 ? '+' : '';
 
     const extraBlocks = [];
+
+    if (isLowKills) {
+      const killsMsg = pickUniqueTip('lowKills', usedIndices, idx);
+      extraBlocks.push(`<div style="margin-top:9px;padding-top:8px;border-top:1px dashed rgba(245,158,11,0.35)">
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;text-transform:uppercase;color:#f59e0b;margin-bottom:3px">
+          <span>&#x1F3AF; Mira fredda</span>
+          <span>${item.kD} kill / ${item.matchesD} part.</span>
+        </div>
+        <div style="opacity:0.95">${esc(killsMsg)}</div>
+      </div>`);
+    }
 
     if (isTiltMarathon) {
       const tiltMsg = pickUniqueTip('tiltMarathon', usedIndices, idx);
