@@ -1,8 +1,38 @@
-if ('serviceWorker' in navigator) {
+if (window.APP_ENV !== 'dev' && 'serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
 let D = { status: {}, changes: [], maps: null };
+
+const DEFAULT_RANK_TIERS = [
+  { name: 'Bronze IV', rp: 1000, color: '#a66838' },
+  { name: 'Silver IV', rp: 3000, color: '#9aa4b0' },
+  { name: 'Gold IV', rp: 5400, color: '#d4af37' },
+  { name: 'Platinum IV', rp: 8200, color: '#39b8c4' },
+  { name: 'Diamond IV', rp: 11400, color: '#3b7be3' },
+  { name: 'Master', rp: 15000, color: '#a349e5' }
+];
+
+const FALLBACK_CONFIG = {
+  seasons: [
+    {
+      id: 's31',
+      name: 'Stagione 31',
+      start: '2026-11-03T19:00:00',
+      end: '2027-02-02T19:00:00',
+      splits: [
+        { id: 's31_sp1', name: 'Split 1', start: '2026-11-03T19:00:00', end: '2026-12-15T19:00:00' },
+        { id: 's31_sp2', name: 'Split 2', start: '2026-12-15T19:00:00', end: '2027-02-02T19:00:00' }
+      ],
+      rankTiers: DEFAULT_RANK_TIERS
+    }
+  ]
+};
+
+let APP_CONFIG = FALLBACK_CONFIG;
+let selectedSeasonId = 's31';
+let selectedSplitId = 'all';
+
 const FALLBACK_TIPS = {
   overtime: ["Oltre 5 ore di gioco oggi: è il momento giusto per staccare, prendere aria e riposare gli occhi!"],
   tiltMarathon: ["Oltre 20 partite e saldo in rosso: forse è il momento di staccare 10 minuti per resettare!"],
@@ -42,6 +72,185 @@ const fmtTime = t => new Date(t * 1000).toLocaleTimeString('it-IT', {hour:'2-dig
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const store = {get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 
+function parseConfigTs(isoStr, fallback) {
+  if (!isoStr) return fallback;
+  const ms = Date.parse(isoStr);
+  return Number.isNaN(ms) ? fallback : Math.floor(ms / 1000);
+}
+
+function getActiveScopeBounds() {
+  if (selectedSeasonId === 'all') {
+    return { startTs: 0, endTs: Infinity, season: null, split: null };
+  }
+  const seasons = APP_CONFIG.seasons || [];
+  const season = seasons.find(s => s.id === selectedSeasonId) || seasons[0] || null;
+  if (!season) return { startTs: 0, endTs: Infinity, season: null, split: null };
+
+  if (selectedSplitId !== 'all' && Array.isArray(season.splits)) {
+    const split = season.splits.find(sp => sp.id === selectedSplitId);
+    if (split) {
+      return {
+        startTs: parseConfigTs(split.start, 0),
+        endTs: parseConfigTs(split.end, Infinity),
+        season,
+        split
+      };
+    }
+  }
+
+  return {
+    startTs: parseConfigTs(season.start, 0),
+    endTs: parseConfigTs(season.end, Infinity),
+    season,
+    split: null
+  };
+}
+
+function formatScopeDate(tsSec) {
+  const d = new Date(tsSec * 1000);
+  const datePart = d.toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' });
+  const timePart = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+  return `${datePart} (${timePart})`;
+}
+
+function updateSplitInfo() {
+  const infoEl = $('split-info');
+  if (!infoEl) return;
+
+  if (selectedSeasonId === 'all') {
+    infoEl.classList.add('hidden');
+    infoEl.innerHTML = '';
+    return;
+  }
+
+  const { startTs, endTs, season, split } = getActiveScopeBounds();
+  if (!season || endTs === Infinity) {
+    infoEl.classList.add('hidden');
+    infoEl.innerHTML = '';
+    return;
+  }
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  const labelPrefix = split ? `Fine ${esc(split.name)}` : 'Fine stagione';
+  const formattedEnd = formatScopeDate(endTs);
+
+  let rightBadge = '';
+  if (nowSec < startTs) {
+    const daysToStart = Math.max(1, Math.ceil((startTs - nowSec) / 86400));
+    rightBadge = `<span class="split-countdown">Inizia tra ${daysToStart} ${daysToStart === 1 ? 'giorno' : 'giorni'}</span>`;
+  } else if (nowSec < endTs) {
+    const diffSec = endTs - nowSec;
+    const daysLeft = Math.floor(diffSec / 86400);
+    const hoursLeft = Math.floor((diffSec % 86400) / 3600);
+    const remTxt = daysLeft >= 1
+      ? `${daysLeft} ${daysLeft === 1 ? 'giorno' : 'giorni'} rimanenti`
+      : `${Math.max(1, hoursLeft)} ${hoursLeft === 1 ? 'ora' : 'ore'} rimanenti`;
+    rightBadge = `<span class="split-countdown">&#x23F3; ${remTxt}</span>`;
+  } else {
+    rightBadge = `<span class="split-countdown ended">Concluso</span>`;
+  }
+
+  infoEl.innerHTML = `
+    <span>${labelPrefix}: <b>${esc(formattedEnd)}</b></span>
+    ${rightBadge}
+  `;
+  infoEl.classList.remove('hidden');
+}
+
+function getActiveRankTiers() {
+  const { season } = getActiveScopeBounds();
+  if (season && Array.isArray(season.rankTiers) && season.rankTiers.length) {
+    return season.rankTiers;
+  }
+  const seasons = APP_CONFIG.seasons || [];
+  if (seasons.length) {
+    const latest = seasons[seasons.length - 1];
+    if (Array.isArray(latest.rankTiers) && latest.rankTiers.length) return latest.rankTiers;
+  }
+  return DEFAULT_RANK_TIERS;
+}
+
+function getScopedChanges() {
+  const { startTs, endTs } = getActiveScopeBounds();
+  if (startTs === 0 && endTs === Infinity) return D.changes;
+  return D.changes.filter(c => c[0] >= startTs && c[0] < endTs);
+}
+
+function initSeasonSelectors() {
+  const sEl = $('season-select');
+  const spEl = $('split-select');
+  if (!sEl || !spEl) return;
+
+  const seasons = APP_CONFIG.seasons || [];
+  const nowSec = Math.floor(Date.now() / 1000);
+
+  const savedSeason = store.get('apex_season');
+  if (savedSeason && (savedSeason === 'all' || seasons.some(s => s.id === savedSeason))) {
+    selectedSeasonId = savedSeason;
+  } else {
+    const active = seasons.find(s => {
+      const st = parseConfigTs(s.start, 0);
+      const en = parseConfigTs(s.end, Infinity);
+      return nowSec >= st && nowSec < en;
+    });
+    selectedSeasonId = active ? active.id : (seasons.length ? seasons[seasons.length - 1].id : 'all');
+  }
+
+  sEl.innerHTML = '';
+  seasons.forEach(s => sEl.add(new Option(s.name, s.id)));
+  sEl.add(new Option('Tutte le stagioni', 'all'));
+  sEl.value = selectedSeasonId;
+
+  populateSplitSelector(true);
+}
+
+function populateSplitSelector(useStored) {
+  const spEl = $('split-select');
+  if (!spEl) return;
+  spEl.innerHTML = '';
+
+  if (selectedSeasonId === 'all') {
+    spEl.add(new Option('Tutto lo storico', 'all'));
+    spEl.disabled = true;
+    selectedSplitId = 'all';
+    updateSplitInfo();
+    return;
+  }
+
+  spEl.disabled = false;
+  const season = (APP_CONFIG.seasons || []).find(s => s.id === selectedSeasonId);
+  const splits = (season && Array.isArray(season.splits)) ? season.splits : [];
+
+  spEl.add(new Option('Intera stagione', 'all'));
+  splits.forEach(sp => spEl.add(new Option(sp.name, sp.id)));
+
+  const savedSplit = useStored ? store.get('apex_split_' + selectedSeasonId) : null;
+  if (savedSplit && (savedSplit === 'all' || splits.some(sp => sp.id === savedSplit))) {
+    selectedSplitId = savedSplit;
+  } else {
+    selectedSplitId = 'all';
+  }
+  spEl.value = selectedSplitId;
+  updateSplitInfo();
+}
+
+function onSeasonChange() {
+  selectedSeasonId = $('season-select').value;
+  store.set('apex_season', selectedSeasonId);
+  populateSplitSelector(false);
+  fillKeys();
+  renderAll();
+}
+
+function onSplitChange() {
+  selectedSplitId = $('split-select').value;
+  if (selectedSeasonId !== 'all') {
+    store.set('apex_split_' + selectedSeasonId, selectedSplitId);
+  }
+  fillKeys();
+  renderAll();
+}
+
 function isCompactChecked(scope) {
   const candidates = scope === 'compare'
     ? ['compare-compact', 'compact-compare', 'compare-compress', 'compress-compare']
@@ -68,7 +277,7 @@ function createTimeCompressor(allTimestampsSec, enabled) {
   const calcBounds = (startMs, endMs) => {
     if (startMs === undefined || endMs === undefined) return { minX: undefined, maxX: undefined };
     const span = Math.max(endMs - startMs, 10 * 60 * 1000);
-    const pad = Math.round(span * 0.03); // 3% di margine a sinistra e a destra
+    const pad = Math.round(span * 0.03);
     return { minX: startMs - pad, maxX: endMs + pad };
   };
 
@@ -147,6 +356,12 @@ function createTimeCompressor(allTimestampsSec, enabled) {
 }
 
 function getPeriodBounds(period) {
+  const scope = getActiveScopeBounds();
+
+  if (period === 'season') {
+    return { cutoff: scope.startTs, endCutoff: scope.endTs };
+  }
+
   const shifted = new Date(Date.now() - 4 * 3600 * 1000);
   let start;
   let endCutoff = Infinity;
@@ -164,7 +379,11 @@ function getPeriodBounds(period) {
     start = new Date(shifted.getFullYear(), shifted.getMonth(), 1, 4, 0, 0);
   }
 
-  return { cutoff: Math.floor(start.getTime() / 1000), endCutoff };
+  const rawCutoff = Math.floor(start.getTime() / 1000);
+  return {
+    cutoff: Math.max(rawCutoff, scope.startTs),
+    endCutoff: Math.min(endCutoff, scope.endTs)
+  };
 }
 
 function getDayExtraFlags({ rpD, kD, matchesD, playtimeMin }) {
@@ -390,35 +609,36 @@ function getGamingDayInfo(ts) {
   return { key, label: label.charAt(0).toUpperCase() + label.slice(1) };
 }
 
-const RANK_TIERS = [
-  { name: 'Bronze IV', rp: 1000, color: '#a66838' },
-  { name: 'Silver IV', rp: 3000, color: '#9aa4b0' },
-  { name: 'Gold IV', rp: 5400, color: '#d4af37' },
-  { name: 'Platinum IV', rp: 8200, color: '#39b8c4' },
-  { name: 'Diamond IV', rp: 11400, color: '#3b7be3' },
-  { name: 'Master', rp: 15000, color: '#a349e5' }
-];
-
 const rankBandsPlugin = {
   id: 'rankBands',
   afterDraw(chart) {
-    if ($('key').value !== 'rank_score') return;
+    const isCompare = chart.canvas.id === 'chart-compare';
+    if (isCompare) {
+      const isRelative = $('compare-relative') && $('compare-relative').checked;
+      if (selectedSeasonId === 'all' || isRelative) return;
+    } else if ($('key').value !== 'rank_score') {
+      return;
+    }
+
+    const tiers = getActiveRankTiers();
     const { ctx, chartArea: { left, right, top, bottom }, scales: { y } } = chart;
     ctx.save();
-    RANK_TIERS.forEach(t => {
+    tiers.forEach(t => {
       const yPos = y.getPixelForValue(t.rp);
       if (yPos >= top && yPos <= bottom) {
         ctx.beginPath();
-        ctx.setLineDash([4, 4]);
-        ctx.strokeStyle = t.color + '88';
+        ctx.setLineDash([2, 4]);
+        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = t.color + 'aa';
         ctx.moveTo(left, yPos);
         ctx.lineTo(right, yPos);
         ctx.stroke();
         ctx.setLineDash([]);
+
         ctx.fillStyle = t.color;
-        ctx.font = 'bold 11px system-ui';
-        ctx.textAlign = 'right';
-        ctx.fillText(t.name, right - 4, yPos - 4);
+        ctx.font = 'bold 10px system-ui';
+        ctx.textAlign = isCompare ? 'left' : 'right';
+        ctx.fillText(t.name.toUpperCase(), isCompare ? left + 6 : right - 4, yPos - 4);
       }
     });
     ctx.restore();
@@ -597,12 +817,23 @@ document.querySelectorAll('.tab').forEach(btn => {
 
 async function loadData() {
   try {
-    const [dataRes, tipsRes, transRes] = await Promise.all([
+    const [dataRes, tipsRes, transRes, cfgRes] = await Promise.all([
       fetch('data.json?t=' + Date.now()),
       fetch('tips.json?t=' + Date.now()).catch(() => null),
-      fetch('translations.json?t=' + Date.now()).catch(() => null)
+      fetch('translations.json?t=' + Date.now()).catch(() => null),
+      fetch('config.json?t=' + Date.now()).catch(() => null)
     ]);
     const raw = await dataRes.json();
+    if (cfgRes && cfgRes.ok) {
+      try {
+        const loadedCfg = await cfgRes.json();
+        if (loadedCfg && Array.isArray(loadedCfg.seasons) && loadedCfg.seasons.length) {
+          APP_CONFIG = loadedCfg;
+        }
+      } catch (e) {
+        console.error('Errore JSON in config.json:', e);
+      }
+    }
     if (tipsRes && tipsRes.ok) {
       try {
         COACH_TIPS = await tipsRes.json();
@@ -624,6 +855,7 @@ async function loadData() {
       return c[3] === null || Math.round(c[3] * 100) !== Math.round(c[4] * 100);
     });
     D.maps = raw.maps || null;
+    initSeasonSelectors();
     renderMaps();
     initSelectors();
     fillKeys();
@@ -633,6 +865,14 @@ async function loadData() {
   }
 }
 
+function mapSlug(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+}
+
 function renderMaps() {
   const bar = $('map-bar');
   if (!D.maps || !D.maps.ranked_current) {
@@ -640,13 +880,30 @@ function renderMaps() {
     return;
   }
   bar.classList.remove('hidden');
-  const endTxt = D.maps.ranked_end ? `fino alle ${fmtTime(D.maps.ranked_end)}` : '';
-  const nextTxt = D.maps.ranked_next ? ` \u00b7 Poi: <b>${esc(D.maps.ranked_next)}</b>` : '';
-  const pubsTxt = D.maps.pubs_current ? `<span class="mut">Pubbliche: ${esc(D.maps.pubs_current)}</span>` : '';
+
+  const endTxt = D.maps.ranked_end ? ` \u00b7 Fino alle ${fmtTime(D.maps.ranked_end)}` : '';
+  const subParts = [];
+  if (D.maps.ranked_next) subParts.push(`Poi: <b style="color:var(--fg)">${esc(D.maps.ranked_next)}</b>`);
+  if (D.maps.pubs_current) subParts.push(`Pubbliche: ${esc(D.maps.pubs_current)}`);
+
   bar.innerHTML = `
-    <div class="map-pill">&#x1F5FA;&#xFE0F; <span>Ranked: <b>${esc(D.maps.ranked_current)}</b> <span class="mut">(${endTxt})</span>${nextTxt}</span></div>
-    ${pubsTxt}
+    <div class="map-kicker">Ranked${endTxt}</div>
+    <div class="map-title">${esc(D.maps.ranked_current)}</div>
+    ${subParts.length ? `<div class="map-sub">${subParts.join(' &middot; ')}</div>` : ''}
   `;
+
+  const slug = mapSlug(D.maps.ranked_current);
+  const imgUrl = `maps/${slug}.jpg`;
+  const probe = new Image();
+  probe.onload = () => {
+    bar.classList.add('has-bg');
+    bar.style.backgroundImage = `linear-gradient(90deg, rgba(18,20,24,0.06) 0%, rgba(18,20,24,0.32) 42%, rgba(18,20,24,0.88) 72%, rgba(18,20,24,0.96) 100%), url('${imgUrl}')`;
+  };
+  probe.onerror = () => {
+    bar.classList.remove('has-bg');
+    bar.style.backgroundImage = '';
+  };
+  probe.src = imgUrl;
 }
 
 function updateHeaderSub() {
@@ -684,7 +941,8 @@ function initSelectors() {
 
 function fillKeys() {
   const uid = $('player').value;
-  const keys = [...new Set(D.changes.filter(c => c[1] === uid && c[2] !== 'selected_legend').map(c => c[2]))];
+  const scoped = getScopedChanges();
+  const keys = [...new Set(scoped.filter(c => c[1] === uid && c[2] !== 'selected_legend').map(c => c[2]))];
   const prev = $('key').value;
   $('key').innerHTML = '';
 
@@ -728,7 +986,7 @@ function calcPeriodStats(uid, period) {
   const { cutoff, endCutoff } = getPeriodBounds(period);
   const agg = {};
 
-  D.changes.filter(c => c[1] === uid && c[0] >= cutoff && c[0] < endCutoff && c[3] !== null && c[2] !== 'selected_legend').forEach(r => {
+  getScopedChanges().filter(c => c[1] === uid && c[0] >= cutoff && c[0] < endCutoff && c[3] !== null && c[2] !== 'selected_legend').forEach(r => {
     const k = r[2];
     const diff = Math.round((r[4] - r[3]) * 100) / 100;
     if (!isValidDelta(k, diff)) return;
@@ -804,7 +1062,10 @@ function renderCompare() {
   const colors = ['#e0463a', '#3b7be3', '#1ea653', '#d4af37', '#a349e5'];
   const isRelative = $('compare-relative') && $('compare-relative').checked;
   const isCompact = isCompactChecked('compare');
-  const minCutoff = compareDays > 0 ? Math.floor(Date.now() / 1000) - compareDays * 86400 : 0;
+  const scope = getActiveScopeBounds();
+  const minCutoff = compareDays > 0
+    ? Math.max(Math.floor(Date.now() / 1000) - compareDays * 86400, scope.startTs)
+    : scope.startTs;
 
   const squadPlayers = uids.map((u, origIdx) => {
     const p = D.status[u] || {};
@@ -838,8 +1099,8 @@ function renderCompare() {
 
   squadPlayers.forEach(item => {
     const allRp = getPlayerRpTimeline(item.uid);
-    let rows = minCutoff ? allRp.filter(c => c[0] >= minCutoff) : allRp;
-    if (!rows.length && allRp.length) rows = [allRp[allRp.length - 1]];
+    let rows = allRp.filter(c => c[0] >= minCutoff && c[0] < scope.endTs);
+    if (!rows.length && allRp.length && compareDays > 0) rows = [allRp[allRp.length - 1]];
     playerRowsMap[item.uid] = rows;
     rows.forEach(r => allFilteredTs.push(r[0]));
   });
@@ -873,7 +1134,7 @@ function renderCompare() {
   compareChart = new Chart($('chart-compare'), {
     type: 'line',
     data: { datasets },
-    plugins: [rpGuidesPlugin],
+    plugins: [rankBandsPlugin, rpGuidesPlugin],
     options: {
       maintainAspectRatio: false,
       parsing: false,
@@ -921,59 +1182,59 @@ function renderCompare() {
 
 const BADGE_INFO = {
   dominant: {
-    icon: '👑',
+    icon: '\uD83D\uDC51',
     label: 'Dominio',
     color: '#1ea653',
-    bg: 'rgba(30, 166, 83, 0.14)',
-    border: 'rgba(30, 166, 83, 0.35)',
-    desc: 'Giornata chiusa con almeno +200 RP e una media kill ≥ 0,9 (4+ kill minime).'
+    bg: 'rgba(30, 166, 83, 0.08)',
+    border: 'rgba(30, 166, 83, 0.24)',
+    desc: 'Giornata chiusa con almeno +200 RP e una media kill >= 0,9 (4+ kill minime).'
   },
   good: {
-    icon: '📈',
+    icon: '\uD83D\uDCC8',
     label: 'In positivo',
     color: '#1ea653',
-    bg: 'rgba(30, 166, 83, 0.14)',
-    border: 'rgba(30, 166, 83, 0.35)',
+    bg: 'rgba(30, 166, 83, 0.08)',
+    border: 'rgba(30, 166, 83, 0.24)',
     desc: 'Giornata chiusa con un guadagno di almeno +100 RP.'
   },
   limbo: {
-    icon: '⚖️',
+    icon: '\u2696\uFE0F',
     label: 'In bilico',
     color: '#9aa4b0',
-    bg: 'rgba(255, 255, 255, 0.05)',
-    border: 'rgba(255, 255, 255, 0.14)',
+    bg: 'rgba(255, 255, 255, 0.03)',
+    border: 'rgba(255, 255, 255, 0.11)',
     desc: 'Giornata di transizione chiusa tra -99 RP e +99 RP.'
   },
   lowKills: {
-    icon: '🎯',
+    icon: '\uD83C\uDFAF',
     label: 'Mira fredda',
     color: '#f59e0b',
     bg: 'rgba(245, 158, 11, 0.07)',
-    border: 'rgba(245, 158, 11, 0.35)',
-    desc: 'Giornata chiusa con saldo ≤ +50 RP e media inferiore a 0,5 kill a partita.'
+    border: 'rgba(245, 158, 11, 0.22)',
+    desc: 'Giornata chiusa con saldo <= +50 RP e media inferiore a 0,5 kill a partita.'
   },
   lowRp: {
-    icon: '📉',
+    icon: '\uD83D\uDCC9',
     label: 'Allarme RP',
     color: '#e0463a',
     bg: 'rgba(224, 70, 58, 0.07)',
-    border: 'rgba(224, 70, 58, 0.35)',
+    border: 'rgba(224, 70, 58, 0.22)',
     desc: 'Giornata chiusa con una perdita pesante di almeno -100 RP.'
   },
   tiltMarathon: {
-    icon: '🌀',
+    icon: '\uD83C\uDF00',
     label: 'Maratona Tilt',
     color: '#e0463a',
     bg: 'rgba(224, 70, 58, 0.07)',
-    border: 'rgba(224, 70, 58, 0.35)',
-    desc: 'Sessione lunghissima senza resa (≥20 partite con meno di -50 RP, ≥30 partite con meno di +100 RP, oppure ≥40 partite).'
+    border: 'rgba(224, 70, 58, 0.22)',
+    desc: 'Sessione lunghissima senza resa (>=20 partite con meno di -50 RP, >=30 partite con meno di +100 RP, oppure >=40 partite).'
   },
   overtime: {
-    icon: '⏳',
+    icon: '\u23F3',
     label: 'Oltre 5h',
     color: '#f59e0b',
     bg: 'rgba(245, 158, 11, 0.07)',
-    border: 'rgba(245, 158, 11, 0.35)',
+    border: 'rgba(245, 158, 11, 0.22)',
     desc: 'Almeno 5 ore di gioco stimate nella stessa giornata.'
   }
 };
@@ -984,7 +1245,6 @@ function toggleBadgePopover(key, count) {
   const info = BADGE_INFO[key];
   if (!info) return;
 
-  // Se riclicchi lo stesso badge già aperto, lo chiude
   if (pop.dataset.activeKey === key && !pop.classList.contains('hidden')) {
     pop.classList.add('hidden');
     pop.dataset.activeKey = '';
@@ -1029,7 +1289,7 @@ function renderRecap() {
     </div>` : ''}
   `;
 
-const badgeBox = $('recap-badges');
+  const badgeBox = $('recap-badges');
   if (badgeBox) {
     const b = calcPlayerHistoricalBadges(uid);
     const keysOrder = ['dominant', 'good', 'limbo', 'lowKills', 'lowRp', 'tiltMarathon', 'overtime'];
@@ -1137,7 +1397,7 @@ function renderMatches() {
   const list = buildPlayerSessions(uid).reverse().slice(0, 80);
 
   if (!list.length) {
-    $('matches-list').innerHTML = '<div class="mut">Nessuna partita rilevata ancora.</div>';
+    $('matches-list').innerHTML = '<div class="mut">Nessuna partita rilevata nella selezione corrente.</div>';
     return;
   }
 
@@ -1196,11 +1456,15 @@ function renderMatches() {
 function renderOverview() {
   const uid = $('player').value, k = $('key').value;
   const isCompact = isCompactChecked('overview');
-  const minCutoff = overviewDays > 0 ? Math.floor(Date.now() / 1000) - overviewDays * 86400 : 0;
+  const scope = getActiveScopeBounds();
+  const minCutoff = overviewDays > 0
+    ? Math.max(Math.floor(Date.now() / 1000) - overviewDays * 86400, scope.startTs)
+    : scope.startTs;
+
   const allRows = k === 'rank_score'
     ? getPlayerRpTimeline(uid)
-    : D.changes.filter(c => c[1] === uid && c[2] === k);
-  const rows = minCutoff ? allRows.filter(c => c[0] >= minCutoff) : allRows;
+    : getScopedChanges().filter(c => c[1] === uid && c[2] === k);
+  const rows = allRows.filter(c => c[0] >= minCutoff && c[0] < scope.endTs);
 
   const comp = createTimeCompressor(rows.map(r => r[0]), isCompact);
   const lineColor = k === 'rank_score' ? '#d4af37' : '#e0463a';
@@ -1265,7 +1529,7 @@ function renderOverview() {
   chart.$compressor = comp;
   chart.update('none');
 
-  const ev = D.changes.filter(c => c[1] === uid).slice(-50).reverse();
+  const ev = getScopedChanges().filter(c => c[1] === uid).slice(-50).reverse();
   $('events').innerHTML = ev.map(e => {
     if (e[2] === 'selected_legend') {
       return `<tr><td>${fmt(e[0])}</td><td>${esc(labelKey(e[2]))}</td><td>${e[3] ? esc(e[3]) : '\u2014'}</td><td><b>${esc(e[4])}</b></td><td class="mut">\u2014</td></tr>`;
@@ -1319,8 +1583,9 @@ function formatDuration(totalMinutes) {
 }
 
 function buildPlayerSessions(uid) {
-  const rawEv = D.changes.filter(c => c[1] === uid && c[3] !== null && c[2] !== 'selected_legend');
-  const legendTimeline = D.changes
+  const scoped = getScopedChanges();
+  const rawEv = scoped.filter(c => c[1] === uid && c[3] !== null && c[2] !== 'selected_legend');
+  const legendTimeline = scoped
     .filter(c => c[1] === uid && c[2] === 'selected_legend' && typeof c[4] === 'string' && c[4].length > 0)
     .sort((a, b) => a[0] - b[0]);
 
@@ -1333,7 +1598,6 @@ function buildPlayerSessions(uid) {
     return active;
   };
 
-  // Pre-filtro: individua i timestamp in cui viene sincronizzata per la prima volta una leggenda appena selezionata (senza RP)
   const seenLegends = new Set();
   const initialSyncTs = new Set();
 
@@ -1416,11 +1680,11 @@ function buildPlayerSessions(uid) {
     });
 
     if (rpDiff === null) {
-      const teammatePlayedRanked = D.changes.some(c => {
+      const teammatePlayedRanked = scoped.some(c => {
         if (c[1] === uid || c[2] !== 'rank_score') return false;
         if (Math.abs(c[0] - s.ts) <= 60) return true;
         if (c[0] <= s.ts && (s.ts - c[0]) <= 150) {
-          return D.changes.some(
+          return scoped.some(
             t => t[1] === c[1] && t[2] !== 'rank_score' && t[2] !== 'selected_legend' && Math.abs(t[0] - s.ts) <= 15
           );
         }
@@ -1443,7 +1707,8 @@ function buildPlayerSessions(uid) {
 }
 
 function getPlayerRpTimeline(uid) {
-  const realRp = D.changes.filter(c => c[1] === uid && c[2] === 'rank_score');
+  const scoped = getScopedChanges();
+  const realRp = scoped.filter(c => c[1] === uid && c[2] === 'rank_score');
   if (!realRp.length) return [];
 
   const zeroSessions = buildPlayerSessions(uid).filter(s => s.rpDiff === 0);
@@ -1451,7 +1716,6 @@ function getPlayerRpTimeline(uid) {
 
   const merged = [...realRp];
   zeroSessions.forEach(zs => {
-    // Evita duplicati se esiste già un record rank_score vicino
     if (merged.some(r => Math.abs(r[0] - zs.ts) <= 180)) return;
     const prev = [...merged].reverse().find(r => r[0] <= zs.ts);
     if (prev) {
@@ -1470,6 +1734,7 @@ function calcPlaytimeMinutes(uid, period) {
 }
 
 function renderAll() {
+  updateSplitInfo();
   updateHeaderSub();
   renderCompare();
   renderRecap();
