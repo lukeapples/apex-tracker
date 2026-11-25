@@ -881,13 +881,15 @@ function renderMaps() {
   }
   bar.classList.remove('hidden');
 
-  const endTxt = D.maps.ranked_end ? `fino alle ${fmtTime(D.maps.ranked_end)}` : '';
-  const nextTxt = D.maps.ranked_next ? ` \u00b7 Poi: <b>${esc(D.maps.ranked_next)}</b>` : '';
-  const pubsTxt = D.maps.pubs_current ? `<span class="mut">Pubbliche: ${esc(D.maps.pubs_current)}</span>` : '';
+  const endTxt = D.maps.ranked_end ? ` \u00b7 Fino alle ${fmtTime(D.maps.ranked_end)}` : '';
+  const subParts = [];
+  if (D.maps.ranked_next) subParts.push(`Poi: <b style="color:var(--fg)">${esc(D.maps.ranked_next)}</b>`);
+  if (D.maps.pubs_current) subParts.push(`Pubbliche: ${esc(D.maps.pubs_current)}`);
 
   bar.innerHTML = `
-    <div class="map-pill">&#x1F5FA;&#xFE0F; <span>Ranked: <b>${esc(D.maps.ranked_current)}</b> <span class="mut">(${endTxt})</span>${nextTxt}</span></div>
-    ${pubsTxt}
+    <div class="map-kicker">Ranked${endTxt}</div>
+    <div class="map-title">${esc(D.maps.ranked_current)}</div>
+    ${subParts.length ? `<div class="map-sub">${subParts.join(' &middot; ')}</div>` : ''}
   `;
 
   const slug = mapSlug(D.maps.ranked_current);
@@ -895,7 +897,7 @@ function renderMaps() {
   const probe = new Image();
   probe.onload = () => {
     bar.classList.add('has-bg');
-    bar.style.backgroundImage = `linear-gradient(90deg, rgba(18,20,24,0.88) 0%, rgba(18,20,24,0.55) 52%, rgba(18,20,24,0.86) 100%), url('${imgUrl}')`;
+    bar.style.backgroundImage = `linear-gradient(90deg, rgba(18,20,24,0.06) 0%, rgba(18,20,24,0.32) 42%, rgba(18,20,24,0.88) 72%, rgba(18,20,24,0.96) 100%), url('${imgUrl}')`;
   };
   probe.onerror = () => {
     bar.classList.remove('has-bg');
