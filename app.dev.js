@@ -612,7 +612,14 @@ function getGamingDayInfo(ts) {
 const rankBandsPlugin = {
   id: 'rankBands',
   afterDraw(chart) {
-    if ($('key').value !== 'rank_score') return;
+    const isCompare = chart.canvas.id === 'chart-compare';
+    if (isCompare) {
+      const isRelative = $('compare-relative') && $('compare-relative').checked;
+      if (selectedSeasonId === 'all' || isRelative) return;
+    } else if ($('key').value !== 'rank_score') {
+      return;
+    }
+
     const tiers = getActiveRankTiers();
     const { ctx, chartArea: { left, right, top, bottom }, scales: { y } } = chart;
     ctx.save();
@@ -620,16 +627,18 @@ const rankBandsPlugin = {
       const yPos = y.getPixelForValue(t.rp);
       if (yPos >= top && yPos <= bottom) {
         ctx.beginPath();
-        ctx.setLineDash([4, 4]);
-        ctx.strokeStyle = t.color + '88';
+        ctx.setLineDash([2, 4]);
+        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = t.color + 'aa';
         ctx.moveTo(left, yPos);
         ctx.lineTo(right, yPos);
         ctx.stroke();
         ctx.setLineDash([]);
+
         ctx.fillStyle = t.color;
-        ctx.font = 'bold 11px system-ui';
-        ctx.textAlign = 'right';
-        ctx.fillText(t.name, right - 4, yPos - 4);
+        ctx.font = 'bold 10px system-ui';
+        ctx.textAlign = isCompare ? 'left' : 'right';
+        ctx.fillText(t.name.toUpperCase(), isCompare ? left + 6 : right - 4, yPos - 4);
       }
     });
     ctx.restore();
@@ -1100,7 +1109,7 @@ function renderCompare() {
   compareChart = new Chart($('chart-compare'), {
     type: 'line',
     data: { datasets },
-    plugins: [rpGuidesPlugin],
+    plugins: [rankBandsPlugin, rpGuidesPlugin],
     options: {
       maintainAspectRatio: false,
       parsing: false,
