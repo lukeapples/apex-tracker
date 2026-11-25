@@ -865,6 +865,14 @@ async function loadData() {
   }
 }
 
+function mapSlug(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+}
+
 function renderMaps() {
   const bar = $('map-bar');
   if (!D.maps || !D.maps.ranked_current) {
@@ -872,13 +880,28 @@ function renderMaps() {
     return;
   }
   bar.classList.remove('hidden');
+
   const endTxt = D.maps.ranked_end ? `fino alle ${fmtTime(D.maps.ranked_end)}` : '';
   const nextTxt = D.maps.ranked_next ? ` \u00b7 Poi: <b>${esc(D.maps.ranked_next)}</b>` : '';
   const pubsTxt = D.maps.pubs_current ? `<span class="mut">Pubbliche: ${esc(D.maps.pubs_current)}</span>` : '';
+
   bar.innerHTML = `
     <div class="map-pill">&#x1F5FA;&#xFE0F; <span>Ranked: <b>${esc(D.maps.ranked_current)}</b> <span class="mut">(${endTxt})</span>${nextTxt}</span></div>
     ${pubsTxt}
   `;
+
+  const slug = mapSlug(D.maps.ranked_current);
+  const imgUrl = `maps/${slug}.jpg`;
+  const probe = new Image();
+  probe.onload = () => {
+    bar.classList.add('has-bg');
+    bar.style.backgroundImage = `linear-gradient(90deg, rgba(18,20,24,0.88) 0%, rgba(18,20,24,0.55) 52%, rgba(18,20,24,0.86) 100%), url('${imgUrl}')`;
+  };
+  probe.onerror = () => {
+    bar.classList.remove('has-bg');
+    bar.style.backgroundImage = '';
+  };
+  probe.src = imgUrl;
 }
 
 function updateHeaderSub() {
