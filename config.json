@@ -21,33 +21,38 @@
       ],
       "rankTiers": [
         {
-          "name": "Bronze IV",
+          "name": "Principiante",
+          "rp": 0,
+          "color": "#695342"
+        },
+        {
+          "name": "Bronzo",
           "rp": 1000,
           "color": "#a66838"
         },
         {
-          "name": "Silver IV",
+          "name": "Argento",
           "rp": 3000,
           "color": "#9aa4b0"
         },
         {
-          "name": "Gold IV",
-          "rp": 5400,
+          "name": "Oro",
+          "rp": 5500,
           "color": "#d4af37"
         },
         {
-          "name": "Platinum IV",
-          "rp": 8200,
+          "name": "Platino",
+          "rp": 8500,
           "color": "#39b8c4"
         },
         {
-          "name": "Diamond IV",
-          "rp": 11400,
+          "name": "Diamante",
+          "rp": 12000,
           "color": "#3b7be3"
         },
         {
           "name": "Master",
-          "rp": 15000,
+          "rp": 16000,
           "color": "#a349e5"
         }
       ]
@@ -73,44 +78,49 @@
       ],
       "rankTiers": [
         {
-          "name": "Bronze IV",
+          "name": "Ferro",
+          "rp": 0,
+          "color": "#695342"
+        },
+        {
+          "name": "Bronzo",
           "rp": 1000,
           "color": "#a66838"
         },
         {
-          "name": "Silver IV",
+          "name": "Argento",
           "rp": 3000,
           "color": "#9aa4b0"
         },
         {
-          "name": "Gold IV",
-          "rp": 5400,
+          "name": "Oro",
+          "rp": 5500,
           "color": "#d4af37"
         },
         {
-          "name": "Platinum IV",
-          "rp": 8200,
+          "name": "Platino",
+          "rp": 8500,
           "color": "#39b8c4"
         },
         {
-          "name": "Diamond IV",
-          "rp": 11400,
+          "name": "Smeraldo",
+          "rp": 12000,
+          "color": "#09b366"
+        },
+        {
+          "name": "Diamante",
+          "rp": 16000,
           "color": "#3b7be3"
         },
         {
-          "name": "Nuova Lega IV",
-          "rp": 15000,
-          "color": "#ec4899"
-        },
-        {
           "name": "Master",
-          "rp": 18000,
+          "rp": 22000,
           "color": "#a349e5"
         },
         {
-          "name": "Apex Predator",
-          "rp": 22000,
-          "color": "#e0463a"
+          "name": "Grand Master",
+          "rp": 26000,
+          "color": "#a80d0d"
         }
       ]
     }
