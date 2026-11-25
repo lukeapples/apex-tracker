@@ -106,6 +106,57 @@ function getActiveScopeBounds() {
   };
 }
 
+function formatScopeDate(tsSec) {
+  const d = new Date(tsSec * 1000);
+  const datePart = d.toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' });
+  const timePart = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+  return `${datePart} (${timePart})`;
+}
+
+function updateSplitInfo() {
+  const infoEl = $('split-info');
+  if (!infoEl) return;
+
+  if (selectedSeasonId === 'all') {
+    infoEl.classList.add('hidden');
+    infoEl.innerHTML = '';
+    return;
+  }
+
+  const { startTs, endTs, season, split } = getActiveScopeBounds();
+  if (!season || endTs === Infinity) {
+    infoEl.classList.add('hidden');
+    infoEl.innerHTML = '';
+    return;
+  }
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  const labelPrefix = split ? `Fine ${esc(split.name)}` : 'Fine stagione';
+  const formattedEnd = formatScopeDate(endTs);
+
+  let rightBadge = '';
+  if (nowSec < startTs) {
+    const daysToStart = Math.max(1, Math.ceil((startTs - nowSec) / 86400));
+    rightBadge = `<span class="split-countdown">Inizia tra ${daysToStart} ${daysToStart === 1 ? 'giorno' : 'giorni'}</span>`;
+  } else if (nowSec < endTs) {
+    const diffSec = endTs - nowSec;
+    const daysLeft = Math.floor(diffSec / 86400);
+    const hoursLeft = Math.floor((diffSec % 86400) / 3600);
+    const remTxt = daysLeft >= 1
+      ? `${daysLeft} ${daysLeft === 1 ? 'giorno' : 'giorni'} rimanenti`
+      : `${Math.max(1, hoursLeft)} ${hoursLeft === 1 ? 'ora' : 'ore'} rimanenti`;
+    rightBadge = `<span class="split-countdown">&#x23F3; ${remTxt}</span>`;
+  } else {
+    rightBadge = `<span class="split-countdown ended">Concluso</span>`;
+  }
+
+  infoEl.innerHTML = `
+    <span>${labelPrefix}: <b>${esc(formattedEnd)}</b></span>
+    ${rightBadge}
+  `;
+  infoEl.classList.remove('hidden');
+}
+
 function getActiveRankTiers() {
   const { season } = getActiveScopeBounds();
   if (season && Array.isArray(season.rankTiers) && season.rankTiers.length) {
@@ -162,6 +213,7 @@ function populateSplitSelector(useStored) {
     spEl.add(new Option('Tutto lo storico', 'all'));
     spEl.disabled = true;
     selectedSplitId = 'all';
+    updateSplitInfo();
     return;
   }
 
@@ -179,6 +231,7 @@ function populateSplitSelector(useStored) {
     selectedSplitId = 'all';
   }
   spEl.value = selectedSplitId;
+  updateSplitInfo();
 }
 
 function onSeasonChange() {
@@ -1647,6 +1700,7 @@ function calcPlaytimeMinutes(uid, period) {
 }
 
 function renderAll() {
+  updateSplitInfo();
   updateHeaderSub();
   renderCompare();
   renderRecap();
