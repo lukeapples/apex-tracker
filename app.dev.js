@@ -808,10 +808,11 @@ document.querySelectorAll('.tab').forEach(btn => {
     document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     activeTab = btn.dataset.tab;
-    ['compare', 'recap', 'matches', 'overview'].forEach(t => $('tab-' + t).classList.toggle('hidden', t !== activeTab));
+    ['compare', 'recap', 'matches', 'overview', 'maps'].forEach(t => $('tab-' + t).classList.toggle('hidden', t !== activeTab));
     updateHeaderSub();
     if (activeTab === 'compare') renderCompare();
     if (activeTab === 'overview') renderOverview();
+    if (activeTab === 'maps' && window.ApexMaps) window.ApexMaps.onTabOpened();
   };
 });
 
@@ -875,6 +876,7 @@ function mapSlug(name) {
 
 function renderMaps() {
   const bar = $('map-bar');
+  if (window.ApexMaps) window.ApexMaps.onMapsLoaded(D.maps);
   if (!D.maps || !D.maps.ranked_current) {
     bar.classList.add('hidden');
     return;
@@ -885,6 +887,12 @@ function renderMaps() {
   const subParts = [];
   if (D.maps.ranked_next) subParts.push(`Poi: <b style="color:var(--fg)">${esc(D.maps.ranked_next)}</b>`);
   if (D.maps.pubs_current) subParts.push(`Pubbliche: ${esc(D.maps.pubs_current)}`);
+
+  bar.style.cursor = 'pointer';
+  bar.title = 'Clicca per aprire la mappa interattiva';
+  bar.onclick = () => {
+    if (window.ApexMaps) window.ApexMaps.openMapTab();
+  };
 
   bar.innerHTML = `
     <div class="map-kicker">Ranked${endTxt}</div>
@@ -907,7 +915,7 @@ function renderMaps() {
 }
 
 function updateHeaderSub() {
-  if (activeTab === 'compare') {
+  if (activeTab === 'compare' || activeTab === 'maps') {
     const times = Object.values(D.status).map(s => s.last_ok).filter(Boolean);
     const last = times.length ? Math.max(...times) : null;
     $('sub').textContent = last ? 'Ultimo aggiornamento squadra: ' + fmt(last) : 'Nessun dato';
