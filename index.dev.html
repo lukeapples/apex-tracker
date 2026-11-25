@@ -195,18 +195,28 @@
   </div>
 </div>
 
+<!-- TAB 5: MAPPE -->
+<div id="tab-maps" class="hidden"></div>
+
 <nav class="nav-bar">
   <button class="tab active" data-tab="compare"><span>&#x1F465;</span>Squadra</button>
   <button class="tab" data-tab="recap"><span>&#x1F4CA;</span>Resoconto</button>
   <button class="tab" data-tab="matches"><span>&#x1F3AE;</span>Partite</button>
   <button class="tab" data-tab="overview"><span>&#x1F4C8;</span>Grafico</button>
+  <button class="tab" data-tab="maps"><span>&#x1F5FA;&#xFE0F;</span>Mappe</button>
 </nav>
 
 <script>
   window.APP_ENV = 'dev';
-  const s = document.createElement('script');
-  s.src = 'app.dev.js?v=' + Date.now();
-  document.body.appendChild(s);
+  const v = Date.now();
+  const sm = document.createElement('script');
+  sm.src = 'maps.dev.js?v=' + v;
+  sm.onload = () => {
+    const s = document.createElement('script');
+    s.src = 'app.dev.js?v=' + v;
+    document.body.appendChild(s);
+  };
+  document.body.appendChild(sm);
 </script>
 </body>
 </html>
