@@ -1,0 +1,118 @@
+{
+  "seasons": [
+    {
+      "id": "s31",
+      "name": "Stagione 31",
+      "start": "2026-11-03T19:00:00",
+      "end": "2027-02-02T19:00:00",
+      "splits": [
+        {
+          "id": "s31_sp1",
+          "name": "Split 1",
+          "start": "2026-11-03T19:00:00",
+          "end": "2026-12-15T19:00:00"
+        },
+        {
+          "id": "s31_sp2",
+          "name": "Split 2",
+          "start": "2026-12-15T19:00:00",
+          "end": "2027-02-02T19:00:00"
+        }
+      ],
+      "rankTiers": [
+        {
+          "name": "Bronze IV",
+          "rp": 1000,
+          "color": "#a66838"
+        },
+        {
+          "name": "Silver IV",
+          "rp": 3000,
+          "color": "#9aa4b0"
+        },
+        {
+          "name": "Gold IV",
+          "rp": 5400,
+          "color": "#d4af37"
+        },
+        {
+          "name": "Platinum IV",
+          "rp": 8200,
+          "color": "#39b8c4"
+        },
+        {
+          "name": "Diamond IV",
+          "rp": 11400,
+          "color": "#3b7be3"
+        },
+        {
+          "name": "Master",
+          "rp": 15000,
+          "color": "#a349e5"
+        }
+      ]
+    },
+    {
+      "id": "s32",
+      "name": "Stagione 32 (Template Futura)",
+      "start": "2027-02-02T19:00:00",
+      "end": null,
+      "splits": [
+        {
+          "id": "s32_sp1",
+          "name": "Split 1",
+          "start": "2027-02-02T19:00:00",
+          "end": "2027-03-16T19:00:00"
+        },
+        {
+          "id": "s32_sp2",
+          "name": "Split 2",
+          "start": "2027-03-16T19:00:00",
+          "end": null
+        }
+      ],
+      "rankTiers": [
+        {
+          "name": "Bronze IV",
+          "rp": 1000,
+          "color": "#a66838"
+        },
+        {
+          "name": "Silver IV",
+          "rp": 3000,
+          "color": "#9aa4b0"
+        },
+        {
+          "name": "Gold IV",
+          "rp": 5400,
+          "color": "#d4af37"
+        },
+        {
+          "name": "Platinum IV",
+          "rp": 8200,
+          "color": "#39b8c4"
+        },
+        {
+          "name": "Diamond IV",
+          "rp": 11400,
+          "color": "#3b7be3"
+        },
+        {
+          "name": "Nuova Lega IV",
+          "rp": 15000,
+          "color": "#ec4899"
+        },
+        {
+          "name": "Master",
+          "rp": 18000,
+          "color": "#a349e5"
+        },
+        {
+          "name": "Apex Predator",
+          "rp": 22000,
+          "color": "#e0463a"
+        }
+      ]
+    }
+  ]
+}
