@@ -30,7 +30,9 @@
     .split-info b{color:var(--fg);font-weight:600}
     .split-countdown{font-weight:700;color:var(--warn);white-space:nowrap}
     .split-countdown.ended{color:var(--mut);font-weight:600}
-    .map-bar{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:8px 12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;font-size:12px}
+    .map-bar{background:var(--card);background-size:cover;background-position:center;border:1px solid var(--bd);border-radius:10px;padding:11px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;font-size:12px;text-shadow:0 1px 3px rgba(0,0,0,.9);transition:background-image .3s ease}
+    .map-bar.has-bg{border-color:rgba(255,255,255,.16)}
+    .map-bar.has-bg .mut{color:#c4cad4}
     .map-pill{display:inline-flex;align-items:center;gap:6px}
     .nav-bar{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--bd);display:flex;justify-content:space-around;padding:8px 0 max(8px,env(safe-area-inset-bottom));z-index:100}
     .tab{border:0;background:transparent;color:var(--mut);font:inherit;font-size:11px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;flex:1}
