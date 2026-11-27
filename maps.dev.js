@@ -61,7 +61,7 @@ window.ApexMaps = (() => {
 
   const LAYER_DEFS = [
     { key: 'pois',             label: 'Zone',        color: '#7dd3fc', defaultOn: true,  group: 'zone' },
-    { key: 'verticalZiplines', label: 'Torri di Lancio',     color: '#fa9e15', defaultOn: true,  group: 'mob'  },
+    { key: 'verticalZiplines', label: 'Torri di Lancio',     color: '#d42000', defaultOn: true,  group: 'mob'  },
     { key: 'ringConsoles',     label: 'Console Anello',     color: '#8ce2ed', defaultOn: false,  group: 'comp' },
     { key: 'surveyBeacons',    label: 'Trasmettitori di Rilevamento',    color: '#b484e1', defaultOn: false,  group: 'comp' },
     { key: 'respawnBeacons',   label: 'Trasmettitore di Rientro',   color: '#22c55e', defaultOn: true,  group: 'comp' },
@@ -514,7 +514,7 @@ window.ApexMaps = (() => {
     // 1. Invalid End Zones
     if (enabledLayers.invalidEndZones) {
       ctx.fillStyle = 'rgba(220, 38, 38, 0.1)';
-      ctx.strokeStyle = 'rgba(220, 38, 38, 0.35)';
+      ctx.strokeStyle = 'rgba(220, 38, 38, 0.65)';
       ctx.lineWidth = 0.8 * invZ;
       (layers.invalidEndZones || []).forEach(z => {
         ctx.beginPath();
@@ -599,7 +599,7 @@ window.ApexMaps = (() => {
 
     if (enabledLayers.harvesters)     drawDots(layers.harvesters,     '#ffee36', '#0f172a', 3.6);
     if (enabledLayers.arsenal)        drawDots(layers.arsenal,        '#f79d5e', '#0f172a', 3.6);
-    if (enabledLayers.verticalZiplines) drawDots(layers.verticalZiplines, '#fa9e15', '#0f172a', 5.0);
+    if (enabledLayers.verticalZiplines) drawDots(layers.verticalZiplines, '#d42000', '#ffffff', 7.0);
     if (enabledLayers.gravityCannons) drawDots(layers.gravityCannons, '#c084fc', '#0f172a', 4.2);
     if (enabledLayers.skydiveLaunchers) drawDots(layers.skydiveLaunchers, '#ec4899', '#ffffff', 5.0);
     if (enabledLayers.replicators)    drawDots(layers.replicators,    '#1678e0', '#0f172a', 4.2);
