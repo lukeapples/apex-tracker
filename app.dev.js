@@ -866,12 +866,27 @@ async function loadData() {
   }
 }
 
+const MAP_NAMES_IT = {
+  storm_point: 'Passo della Tempesta',
+  kings_canyon: 'Canyon dei Re',
+  olympus: 'Olympus',
+  e_district: 'E-District',
+  worlds_edge: 'Confini del Mondo',
+  broken_moon: 'Luna Distrutta'
+};
+
 function mapSlug(name) {
   return String(name || '')
     .toLowerCase()
     .replace(/['’]/g, '')
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_|_$/g, '');
+}
+
+function translateMapName(name) {
+  if (!name) return '';
+  const slug = mapSlug(name);
+  return MAP_NAMES_IT[slug] || name;
 }
 
 function renderMaps() {
@@ -884,20 +899,19 @@ function renderMaps() {
   bar.classList.remove('hidden');
 
   const endTxt = D.maps.ranked_end ? ` \u00b7 Fino alle ${fmtTime(D.maps.ranked_end)}` : '';
-  const subParts = [];
-  if (D.maps.ranked_next) subParts.push(`Poi: <b style="color:var(--fg)">${esc(D.maps.ranked_next)}</b>`);
-  if (D.maps.pubs_current) subParts.push(`Pubbliche: ${esc(D.maps.pubs_current)}`);
+  const currentIt = translateMapName(D.maps.ranked_current);
+  const nextIt = D.maps.ranked_next ? translateMapName(D.maps.ranked_next) : '';
 
   bar.style.cursor = 'pointer';
   bar.title = 'Clicca per aprire la mappa interattiva';
   bar.onclick = () => {
-    if (window.ApexMaps) window.ApexMaps.openMapTab();
+    if (window.ApexMaps) window.ApexMaps.openMapTab(D.maps.ranked_current);
   };
 
   bar.innerHTML = `
     <div class="map-kicker">Ranked${endTxt}</div>
-    <div class="map-title">${esc(D.maps.ranked_current)}</div>
-    ${subParts.length ? `<div class="map-sub">${subParts.join(' &middot; ')}</div>` : ''}
+    <div class="map-title">${esc(currentIt)}</div>
+    ${nextIt ? `<div class="map-sub">Poi: <b style="color:var(--fg)">${esc(nextIt)}</b></div>` : ''}
   `;
 
   const slug = mapSlug(D.maps.ranked_current);
