@@ -44,6 +44,21 @@ window.ApexMaps = (() => {
     },
   ];
 
+  function findMapEntry(rawName) {
+    if (!rawName) return null;
+    const slug = String(rawName)
+      .toLowerCase()
+      .replace(/['’]/g, '')
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_|_$/g, '');
+    const low = String(rawName).toLowerCase();
+    return MAP_REGISTRY.find(m =>
+      m.id === slug ||
+      low.includes(m.name.toLowerCase()) ||
+      low.includes(m.id.replace(/_/g, ' '))
+    ) || null;
+  }
+
   const LAYER_DEFS = [
     { key: 'pois',             label: 'POI & Nomi',        color: '#7dd3fc', defaultOn: true,  group: 'zone' },
     { key: 'endLocation',      label: 'End Zones',         color: '#bef264', defaultOn: true,  group: 'comp' },
@@ -280,19 +295,13 @@ window.ApexMaps = (() => {
   function updateLiveBadge() {
     const badge = document.getElementById('map-live-badge');
     if (!badge) return;
-    const meta = MAP_REGISTRY.find(m => m.id === currentMapId);
-    if (!meta || !liveRotation) {
+    if (!liveRotation || !liveRotation.ranked_current) {
       badge.classList.add('hidden');
       return;
     }
-    const nameLow = meta.name.toLowerCase();
-    const isRanked = (liveRotation.ranked_current || '').toLowerCase().includes(nameLow);
-    const isPubs = (liveRotation.pubs_current || '').toLowerCase().includes(nameLow);
-    if (isRanked) {
+    const activeRanked = findMapEntry(liveRotation.ranked_current);
+    if (activeRanked && activeRanked.id === currentMapId) {
       badge.textContent = 'Attiva ora in Ranked';
-      badge.classList.remove('hidden');
-    } else if (isPubs) {
-      badge.textContent = 'Attiva ora in Pubbliche';
       badge.classList.remove('hidden');
     } else {
       badge.classList.add('hidden');
@@ -660,9 +669,7 @@ window.ApexMaps = (() => {
     onMapsLoaded(mapsObj) {
       liveRotation = mapsObj || null;
       if (liveRotation && liveRotation.ranked_current) {
-        const match = MAP_REGISTRY.find(m =>
-          liveRotation.ranked_current.toLowerCase().includes(m.name.toLowerCase())
-        );
+        const match = findMapEntry(liveRotation.ranked_current);
         if (match && !initialized) currentMapId = match.id;
       }
       updateLiveBadge();
@@ -670,7 +677,16 @@ window.ApexMaps = (() => {
     onTabOpened() {
       refreshMapView();
     },
-    openMapTab() {
+    openMapTab(targetMapName) {
+      const target = targetMapName || (liveRotation && liveRotation.ranked_current);
+      const match = findMapEntry(target);
+      if (match && currentMapId !== match.id) {
+        currentMapId = match.id;
+        selectedPoi = null;
+        resetView();
+        const sel = document.getElementById('map-selector');
+        if (sel) sel.value = currentMapId;
+      }
       const btn = document.querySelector('.tab[data-tab="maps"]');
       if (btn) btn.click();
     }
