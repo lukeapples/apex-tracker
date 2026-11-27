@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <meta name="theme-color" content="#e0463a">
+  <meta name="theme-color" content="#f59e0b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="manifest.json">
@@ -20,7 +20,6 @@
     h2{font-size:15px;margin:0 0 10px;font-weight:600}
     .mut{color:var(--mut);font-size:12px}
     .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px}
-    .dev-pill{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.6px;padding:2px 6px;border-radius:5px;background:rgba(245,158,11,.18);color:#f59e0b;border:1px solid rgba(245,158,11,.45);vertical-align:middle;margin-left:6px}
     .refresh-btn{background:var(--card);border:1px solid var(--bd);color:var(--fg);padding:6px 12px;border-radius:8px;font-size:13px;cursor:pointer}
     .range-btn,.ov-range-btn{padding:4px 8px;font-size:11px}
     .range-btn.active,.ov-range-btn.active{border-color:var(--acc);color:var(--acc);font-weight:700}
@@ -80,7 +79,7 @@
     .tip-box.tip-overtime .tip-head{color:#ff7b72}
     .badges-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;padding-top:8px;border-top:1px dashed var(--bd)}
     .hist-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;background:var(--card);border:1px solid var(--bd);color:var(--fg)}
-    .hidden{display:none}
+    .hidden{display:none!important}
   </style>
 </head>
 <body>
@@ -195,18 +194,28 @@
   </div>
 </div>
 
+<!-- TAB 5: MAPPE -->
+<div id="tab-maps" class="hidden"></div>
+
 <nav class="nav-bar">
   <button class="tab active" data-tab="compare"><span>&#x1F465;</span>Squadra</button>
   <button class="tab" data-tab="recap"><span>&#x1F4CA;</span>Resoconto</button>
   <button class="tab" data-tab="matches"><span>&#x1F3AE;</span>Partite</button>
   <button class="tab" data-tab="overview"><span>&#x1F4C8;</span>Grafico</button>
+  <button class="tab" data-tab="maps"><span>&#x1F5FA;&#xFE0F;</span>Mappe</button>
 </nav>
 
 <script>
-  window.APP_ENV = 'prod';
-  const s = document.createElement('script');
-  s.src = 'app.js?v=' + Date.now();
-  document.body.appendChild(s);
+  window.APP_ENV = 'èrpd';
+  const v = Date.now();
+  const sm = document.createElement('script');
+  sm.src = 'maps.js?v=' + v;
+  sm.onload = () => {
+    const s = document.createElement('script');
+    s.src = 'app.js?v=' + v;
+    document.body.appendChild(s);
+  };
+  document.body.appendChild(sm);
 </script>
 </body>
 </html>
