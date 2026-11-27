@@ -1652,7 +1652,63 @@ function buildPlayerSessions(uid) {
     const sameLegend = !lastLegName || !legName || lastLegName === legName;
 
     if (last && !legendSwitchedBetween && sameLegend && (c[0] - last.ts) <= maxGap) {
-      last.items.
+      last.items.push(c);
+      if (!(hasRpInLast && !isRpNow && (c[0] - last.ts) > 60)) {
+        last.ts = c[0];
+      }
+    } else {
+      sessions.push({
+        startTs: c[0],
+        ts: c[0],
+        items: [c],
+        hintLegend: legName || getActiveLegendAt(c[0])
+      });
+    }
+  });
+
+  return sessions.map((s, idx) => {
+    let legend = null, rpDiff = null, wins = 0;
+    let totalKills = 0, legendKills = 0, totalDmg = 0, legendDmg = 0;
+
+    s.items.forEach(item => {
+      const k = item[2], diff = Math.round((item[4] - item[3]) * 100) / 100;
+      if (!isValidDelta(k, diff)) return;
+
+      if (k.startsWith('legend.')) legend = k.split('.')[1];
+      if (k === 'rank_score') rpDiff = (rpDiff || 0) + diff;
+      else if (k === 'total.kills' || k === 'total.specialEvent_kills') totalKills += diff;
+      else if (k.endsWith('.kills') || k.endsWith('.specialEvent_kills')) legendKills += diff;
+      else if (k === 'total.damage' || k.endsWith('total.specialEvent_damage')) totalDmg += diff;
+      else if (k.endsWith('.damage') || k.endsWith('.specialEvent_damage')) legendDmg += diff;
+      else if (k.endsWith('.wins') && diff > 0 && diff <= 5) wins = Math.max(wins, diff);
+    });
+
+    if (rpDiff === null) {
+      const teammatePlayedRanked = scoped.some(c => {
+        if (c[1] === uid || c[2] !== 'rank_score') return false;
+        if (Math.abs(c[0] - s.ts) <= 60) return true;
+        if (c[0] <= s.ts && (s.ts - c[0]) <= 150) {
+          return scoped.some(
+            t => t[1] === c[1] && t[2] !== 'rank_score' && t[2] !== 'selected_legend' && Math.abs(t[0] - s.ts) <= 15
+          );
+        }
+        return false;
+      });
+      if (teammatePlayedRanked) {
+        rpDiff = 0;
+      }
+    }
+
+    if (!legend) legend = s.hintLegend || getActiveLegendAt(s.ts);
+
+    const kills = totalKills > 0 ? totalKills : legendKills;
+    const dmg = totalDmg > 0 ? totalDmg : legendDmg;
+    const prev = idx > 0 ? sessions[idx - 1] : null;
+    const estMinutes = estimateMatchMinutes(s, prev, rpDiff, kills);
+
+    return { ts: s.ts, legend, rpDiff, wins, kills, dmg, estMinutes };
+  });
+}
 
 function getPlayerRpTimeline(uid) {
   const scoped = getScopedChanges();
