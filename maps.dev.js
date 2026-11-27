@@ -12,7 +12,7 @@ window.ApexMaps = (() => {
       name: 'Canyon dei Re',
       label: 'Canyon dei Re',
       jsonPaths: ['maps/kings_canyon.json', 'kings_canyon.json'],
-      imgPaths: ['mapskings_canyon_map.jpg', 'kings_canyon_map.jpg']
+      imgPaths: ['maps/kings_canyon_map.jpg', 'kings_canyon_map.jpg']
     },
     {
       id: 'olympus',
