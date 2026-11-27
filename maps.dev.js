@@ -2,13 +2,46 @@ window.ApexMaps = (() => {
   const MAP_REGISTRY = [
     {
       id: 'storm_point',
-      name: 'Storm Point',
-      label: 'Storm Point (S31 Split 1)',
+      name: 'Passo della Tempesta',
+      label: 'Passo della Tempesta',
       jsonPaths: ['maps/storm_point.json', 'storm_point.json'],
       imgPaths: ['maps/storm_point_map.jpg', 'storm_point_map.jpg']
-    }
-    // Esempio per future mappe:
-    // { id: 'worlds_edge', name: "World's Edge", label: "World's Edge", jsonPaths: ['maps/worlds_edge.json'], imgPaths: ['maps/worlds_edge_map.jpg'] }
+    },
+    {
+      id: 'kings_canyon',
+      name: 'Canyon dei Re',
+      label: 'Canyon dei Re',
+      jsonPaths: ['maps/kings_canyon.json', 'kings_canyon.json'],
+      imgPaths: ['mapskings_canyon_map.jpg', 'kings_canyon_map.jpg']
+    },
+    {
+      id: 'olympus',
+      name: 'Olympus',
+      label: 'Olympus',
+      jsonPaths: ['maps/olympus.json', 'olympus.json'],
+      imgPaths: ['maps/olympus_map.jpg', 'olympus_map.jpg']
+    },
+    {
+      id: 'e_district',
+      name: 'E-District',
+      label: 'E-District',
+      jsonPaths: ['maps/e_district.json', 'e_district.json'],
+      imgPaths: ['maps/e_district_map.jpg', 'e_district_map.jpg']
+    },
+    {
+      id: 'worlds_edge',
+      name: 'Confini del Mondo',
+      label: 'Confini del Mondo',
+      jsonPaths: ['maps/worlds_edge.json', 'worlds_edge.json'],
+      imgPaths: ['maps/worlds_edge_map.jpg', 'worlds_edge_map.jpg']
+    },
+    {
+      id: 'broken_moon',
+      name: 'Luna Distrutta',
+      label: 'Luna Distrutta',
+      jsonPaths: ['maps/broken_moon.json', 'broken_moon.json'],
+      imgPaths: ['maps/broken_moon_map.jpg', 'broken_moon_map.jpg']
+    },
   ];
 
   const LAYER_DEFS = [
