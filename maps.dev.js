@@ -60,21 +60,22 @@ window.ApexMaps = (() => {
   }
 
   const LAYER_DEFS = [
-    { key: 'pois',             label: 'POI & Nomi',        color: '#7dd3fc', defaultOn: true,  group: 'zone' },
-    { key: 'endLocation',      label: 'End Zones',         color: '#bef264', defaultOn: true,  group: 'comp' },
-    { key: 'invalidEndZones',  label: 'Invalid End Zones', color: '#dc2626', defaultOn: false, group: 'comp' },
-    { key: 'ringConsoles',     label: 'Ring Consoles',     color: '#ef4444', defaultOn: true,  group: 'comp' },
-    { key: 'surveyBeacons',    label: 'Survey Beacons',    color: '#3b82f6', defaultOn: true,  group: 'comp' },
-    { key: 'respawnBeacons',   label: 'Respawn Beacons',   color: '#22c55e', defaultOn: true,  group: 'comp' },
-    { key: 'replicators',      label: 'Replicators',       color: '#14b8a6', defaultOn: true,  group: 'comp' },
-    { key: 'gravityCannons',   label: 'Gravity Cannons',   color: '#c084fc', defaultOn: true,  group: 'mob'  },
-    { key: 'skydiveLaunchers', label: 'Skydive Launchers', color: '#ec4899', defaultOn: true,  group: 'mob'  },
-    { key: 'chargeTowers',     label: 'Charge Towers',     color: '#facc15', defaultOn: true,  group: 'mob'  },
-    { key: 'ziplines',         label: 'Ziplines',          color: '#fde047', defaultOn: false, group: 'mob'  },
-    { key: 'lootHotZones',     label: 'Loot Hot Zones',    color: '#f59e0b', defaultOn: false, group: 'loot' },
-    { key: 'harvesters',       label: 'EVO Harvesters',    color: '#22d3ee', defaultOn: false, group: 'loot' },
-    { key: 'arsenal',          label: 'Arsenal',           color: '#f97316', defaultOn: false, group: 'loot' },
-    { key: 'lootBins',         label: 'Loot Bins',         color: '#cbd5e1', defaultOn: false, group: 'loot' }
+    { key: 'pois',             label: 'Zone',        color: '#7dd3fc', defaultOn: true,  group: 'zone' },
+    { key: 'invalidEndZones',  label: 'Zone di Chiusura Invalide', color: '#dc2626', defaultOn: true, group: 'comp' },
+    { key: 'verticalZiplines', label: 'Torri di Lancio',     color: '#fa9e15', defaultOn: true,  group: 'mob'  },
+    { key: 'ringConsoles',     label: 'Console Anello',     color: '#6aa8b0', defaultOn: false,  group: 'comp' },
+    { key: 'surveyBeacons',    label: 'Trasmettitori di Rilevamento',    color: '#8e6ab0', defaultOn: false,  group: 'comp' },
+    { key: 'respawnBeacons',   label: 'Trasmettitore di Rientro',   color: '#22c55e', defaultOn: true,  group: 'comp' },
+    { key: 'replicators',      label: 'Replicatori',       color: '#1678e0', defaultOn: true,  group: 'comp' },
+    { key: 'ziplines',         label: 'Zipline',          color: '#c4b878', defaultOn: false, group: 'mob'  },
+    { key: 'lootBins',         label: 'Capsule Rifornimento',         color: '#cbd5e1', defaultOn: false, group: 'loot' },
+    { key: 'arsenal',          label: 'Arsenali',           color: '#ba794c', defaultOn: false, group: 'loot' },
+    { key: 'harvesters',       label: 'Depositi EVO',    color: '#ffee36', defaultOn: false, group: 'loot' },
+    { key: 'chargeTowers',     label: 'Torri di Ricarica',     color: '#fabd15', defaultOn: false,  group: 'mob'  }
+    //{ key: 'endLocation',      label: 'End Zones',         color: '#bef264', defaultOn: true,  group: 'comp' },
+    //{ key: 'gravityCannons',   label: 'Cannoni Gravitazionali',   color: '#c084fc', defaultOn: true,  group: 'mob'  },
+    //{ key: 'skydiveLaunchers', label: 'Palloni', color: '#ec4899', defaultOn: true,  group: 'mob'  },
+    //{ key: 'lootHotZones',     label: 'Loot Hot Zones',    color: '#f59e0b', defaultOn: false, group: 'loot' },
   ];
 
   const STORAGE_KEY = 'apex_map_layers_v1';
@@ -512,9 +513,9 @@ window.ApexMaps = (() => {
 
     // 1. Invalid End Zones
     if (enabledLayers.invalidEndZones) {
-      ctx.fillStyle = 'rgba(220, 38, 38, 0.14)';
+      ctx.fillStyle = 'rgba(220, 38, 38, 0.1)';
       ctx.strokeStyle = 'rgba(220, 38, 38, 0.35)';
-      ctx.lineWidth = 1 * invZ;
+      ctx.lineWidth = 0.8 * invZ;
       (layers.invalidEndZones || []).forEach(z => {
         ctx.beginPath();
         ctx.arc(z.x * sx, z.y * sy, (z.radius || 100) * sx, 0, Math.PI * 2);
@@ -548,9 +549,9 @@ window.ApexMaps = (() => {
           else ctx.lineTo(x, y);
         });
         ctx.closePath();
-        ctx.fillStyle = isSel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(56, 189, 248, 0.08)';
+        ctx.fillStyle = isSel ? 'rgba(56, 189, 248, 0.2)' : 'rgba(56, 189, 248, 0.05)';
         ctx.strokeStyle = isSel ? '#38bdf8' : 'rgba(125, 211, 252, 0.55)';
-        ctx.lineWidth = (isSel ? 2.2 : 1.1) * invZ;
+        ctx.lineWidth = (isSel ? 1.5 : 0.8) * invZ;
         ctx.fill();
         ctx.stroke();
       });
@@ -559,7 +560,7 @@ window.ApexMaps = (() => {
     // 4. Ziplines
     if (enabledLayers.ziplines) {
       ctx.strokeStyle = 'rgba(253, 224, 71, 0.78)';
-      ctx.lineWidth = 1.8 * invZ;
+      ctx.lineWidth = 1.1 * invZ;
       (layers.ziplines || []).forEach(line => {
         if (!Array.isArray(line) || line.length < 2) return;
         ctx.beginPath();
@@ -574,7 +575,7 @@ window.ApexMaps = (() => {
     // 5. Loot Bins
     if (enabledLayers.lootBins) {
       ctx.fillStyle = 'rgba(203, 213, 225, 0.6)';
-      const r = 1.6 * invZ;
+      const r = 1.1 * invZ;
       (layers.lootBins || []).forEach(b => {
         ctx.beginPath();
         ctx.arc(b.x * sx, b.y * sy, r, 0, Math.PI * 2);
@@ -586,7 +587,7 @@ window.ApexMaps = (() => {
     const drawDots = (items, fill, stroke, radius) => {
       ctx.fillStyle = fill;
       ctx.strokeStyle = stroke;
-      ctx.lineWidth = 1.3 * invZ;
+      ctx.lineWidth = 0.8 * invZ;
       const r = radius * invZ;
       (items || []).forEach(it => {
         ctx.beginPath();
@@ -596,15 +597,16 @@ window.ApexMaps = (() => {
       });
     };
 
-    if (enabledLayers.harvesters)     drawDots(layers.harvesters,     '#22d3ee', '#0f172a', 3.4);
-    if (enabledLayers.arsenal)        drawDots(layers.arsenal,        '#f97316', '#0f172a', 3.3);
+    if (enabledLayers.harvesters)     drawDots(layers.harvesters,     '#ffee36', '#0f172a', 3.4);
+    if (enabledLayers.arsenal)        drawDots(layers.arsenal,        '#ba794c', '#0f172a', 3.3);
+    if (enabledLayers.verticalZiplines) drawDots(layers.verticalZiplines, '#fa9e15', '#ffffff', 4.7);
     if (enabledLayers.gravityCannons) drawDots(layers.gravityCannons, '#c084fc', '#0f172a', 4.2);
     if (enabledLayers.skydiveLaunchers) drawDots(layers.skydiveLaunchers, '#ec4899', '#ffffff', 5.0);
     if (enabledLayers.replicators)    drawDots(layers.replicators,    '#14b8a6', '#0f172a', 4.2);
     if (enabledLayers.respawnBeacons) drawDots(layers.respawnBeacons, '#22c55e', '#0f172a', 4.2);
-    if (enabledLayers.surveyBeacons)  drawDots(layers.surveyBeacons,  '#3b82f6', '#ffffff', 4.5);
-    if (enabledLayers.ringConsoles)   drawDots(layers.ringConsoles,   '#ef4444', '#ffffff', 4.7);
-    if (enabledLayers.chargeTowers)   drawDots(layers.chargeTowers,   '#facc15', '#0f172a', 5.8);
+    if (enabledLayers.surveyBeacons)  drawDots(layers.surveyBeacons,  '#8e6ab0', '#ffffff', 4.5);
+    if (enabledLayers.ringConsoles)   drawDots(layers.ringConsoles,   '#6aa8b0', '#ffffff', 4.5);
+    if (enabledLayers.chargeTowers)   drawDots(layers.chargeTowers,   '#fabd15', '#0f172a', 5.8);
 
     // 6. End Locations (Final Rings)
     if (enabledLayers.endLocation) {
