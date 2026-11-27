@@ -808,10 +808,11 @@ document.querySelectorAll('.tab').forEach(btn => {
     document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     activeTab = btn.dataset.tab;
-    ['compare', 'recap', 'matches', 'overview'].forEach(t => $('tab-' + t).classList.toggle('hidden', t !== activeTab));
+    ['compare', 'recap', 'matches', 'overview', 'maps'].forEach(t => $('tab-' + t).classList.toggle('hidden', t !== activeTab));
     updateHeaderSub();
     if (activeTab === 'compare') renderCompare();
     if (activeTab === 'overview') renderOverview();
+    if (activeTab === 'maps' && window.ApexMaps) window.ApexMaps.onTabOpened();
   };
 });
 
@@ -865,6 +866,15 @@ async function loadData() {
   }
 }
 
+const MAP_NAMES_IT = {
+  storm_point: 'Passo della Tempesta',
+  kings_canyon: 'Canyon dei Re',
+  olympus: 'Olympus',
+  e_district: 'E-District',
+  worlds_edge: 'Confini del Mondo',
+  broken_moon: 'Luna Distrutta'
+};
+
 function mapSlug(name) {
   return String(name || '')
     .toLowerCase()
@@ -873,8 +883,15 @@ function mapSlug(name) {
     .replace(/^_|_$/g, '');
 }
 
+function translateMapName(name) {
+  if (!name) return '';
+  const slug = mapSlug(name);
+  return MAP_NAMES_IT[slug] || name;
+}
+
 function renderMaps() {
   const bar = $('map-bar');
+  if (window.ApexMaps) window.ApexMaps.onMapsLoaded(D.maps);
   if (!D.maps || !D.maps.ranked_current) {
     bar.classList.add('hidden');
     return;
@@ -882,14 +899,19 @@ function renderMaps() {
   bar.classList.remove('hidden');
 
   const endTxt = D.maps.ranked_end ? ` \u00b7 Fino alle ${fmtTime(D.maps.ranked_end)}` : '';
-  const subParts = [];
-  if (D.maps.ranked_next) subParts.push(`Poi: <b style="color:var(--fg)">${esc(D.maps.ranked_next)}</b>`);
-  if (D.maps.pubs_current) subParts.push(`Pubbliche: ${esc(D.maps.pubs_current)}`);
+  const currentIt = translateMapName(D.maps.ranked_current);
+  const nextIt = D.maps.ranked_next ? translateMapName(D.maps.ranked_next) : '';
+
+  bar.style.cursor = 'pointer';
+  bar.title = 'Clicca per aprire la mappa interattiva';
+  bar.onclick = () => {
+    if (window.ApexMaps) window.ApexMaps.openMapTab(D.maps.ranked_current);
+  };
 
   bar.innerHTML = `
     <div class="map-kicker">Ranked${endTxt}</div>
-    <div class="map-title">${esc(D.maps.ranked_current)}</div>
-    ${subParts.length ? `<div class="map-sub">${subParts.join(' &middot; ')}</div>` : ''}
+    <div class="map-title">${esc(currentIt)}</div>
+    ${nextIt ? `<div class="map-sub">Poi: <b style="color:var(--fg)">${esc(nextIt)}</b></div>` : ''}
   `;
 
   const slug = mapSlug(D.maps.ranked_current);
@@ -907,7 +929,7 @@ function renderMaps() {
 }
 
 function updateHeaderSub() {
-  if (activeTab === 'compare') {
+  if (activeTab === 'compare' || activeTab === 'maps') {
     const times = Object.values(D.status).map(s => s.last_ok).filter(Boolean);
     const last = times.length ? Math.max(...times) : null;
     $('sub').textContent = last ? 'Ultimo aggiornamento squadra: ' + fmt(last) : 'Nessun dato';
@@ -1598,25 +1620,21 @@ function buildPlayerSessions(uid) {
     return active;
   };
 
-  const seenLegends = new Set();
-  const initialSyncTs = new Set();
+  // Individua i timestamp in cui una nuova leggenda viene sincronizzata per la prima volta
+  // (identificati da una chiave legend.* con valore precedente null, es. "— -> 31")
+  const firstLegendSyncTs = new Set(
+    scoped
+      .filter(c => c[1] === uid && c[2].startsWith('legend.') && c[3] === null)
+      .map(c => c[0])
+  );
 
-  rawEv.forEach(c => {
-    const k = c[2];
-    if (k.startsWith('legend.')) {
-      const legName = k.split('.')[1];
-      if (!seenLegends.has(legName)) {
-        seenLegends.add(legName);
-        const recentSwitch = legendTimeline.some(lt => lt[0] <= c[0] && (c[0] - lt[0]) <= 180);
-        const hasRpAtSameTime = rawEv.some(other => other[2] === 'rank_score' && Math.abs(other[0] - c[0]) <= 15);
-        if (recentSwitch && !hasRpAtSameTime) {
-          initialSyncTs.add(c[0]);
-        }
-      }
-    }
+  // Scarta gli aggiornamenti storici di total.* (es. total.kills +31, total.damage +17352)
+  // che avvengono nello stesso istante della prima sincronizzazione di una leggenda
+  const ev = rawEv.filter(c => {
+    if (c[2].startsWith('total.') && firstLegendSyncTs.has(c[0])) return false;
+    return true;
   });
 
-  const ev = rawEv.filter(c => !initialSyncTs.has(c[0]));
   const sessions = [];
 
   ev.forEach(c => {
