@@ -624,7 +624,7 @@ window.ApexMaps = (() => {
 
     // 7. Etichette POI
     if (enabledLayers.pois) {
-      const fontSize = Math.max(5, Math.round(8 * invZ));
+      const fontSize = Math.max(4, Math.round(6.5 * invZ));
       ctx.font = `600 ${fontSize}px system-ui, -apple-system, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -637,7 +637,7 @@ window.ApexMaps = (() => {
         const bw = metrics.width + padX * 2;
         const bh = fontSize + padY * 2;
 
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.4)';
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.45)';
         ctx.fillRect(cx - bw / 2, cy - bh / 2, bw, bh);
         ctx.fillStyle = '#f8fafc';
         ctx.fillText(p.name, cx, cy + 0.5 * invZ);
